@@ -9,16 +9,35 @@ tests:
     extra_wait_s: 10
     prompt: |
       Verify the Frequently Used GAL4 Drivers table does not show a 'Something is broken' error page.
-  
+      Check that the table is populated with data and does not show an error message.
+
   - name: "GAL4 QS Search Interaction and Result Load"
-    enabled: false
-    url: "https://flybase.org/search/" # Please verify this is the correct starting page
+    enabled: true
+    url: "https://flybase.org/
     check_types:
-      - text
-    compare_to_production: false 
+      - text # Check for text in the results table
+      - picture # Visually check results table
+    compare_to_production: true # This is a specific interaction test
+    actions_before_capture:
+      - action: click
+        locate_by: link_text # Find the tab by its visible text
+        value: "GAL4 etc"
+        wait_after_s: 3       # Wait 1 sec for tab content potentially
+
+      - action: input_text
+        locate_by: id         # Find the input box by its ID
+        value: "ANATOMY"
+        text: "abdominal segment 11" # The text to type
+        wait_after_s: 0.5   # Optional short pause after typing
+
+      - action: press_key
+        locate_by: id         # Target the same input box
+        value: "ANATOMY"
+        key: "ENTER"          # Specify the Enter key
+        wait_after_s: 5       # IMPORTANT: Wait longer after submitting for results to load
     prompt: |
-      Check Gene Group (FlyBase) and Pathway (FlyBase) reports. Function and Summaries sections should be separate, not merged. Ref WEB-2346.
-  
+      Verify that after clicking the 'GAL4 etc' tab, entering 'abdominal segment 11' into the Anatomy search box, and pressing Enter, a results table appears containing relevant data rows (e.g., GAL4 lines related to that anatomy term). The table should not be empty or show an error.
+
   - name: "Function/Summaries Merged in Gene Group Reports"
     enabled: false
     url: "https://flybase.org/" # Placeholder - Needs specific Gene Group/Pathway report URL
