@@ -1,0 +1,44 @@
+name: QA Tests and Publish
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v3
+
+      - name: Build QA Docker image
+        run: docker build -t my-qa-image .
+
+      # Provide the secret to the container as WAF_SECRET_HEADER
+      - name: Run QA tests in Docker
+        run: |
+          mkdir -p artifacts
+          docker run --rm \
+            -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            -e WAF_SECRET_HEADER="${{ secrets.AWS_WAF_SECRET }}" \
+            -v ${{ github.workspace }}/artifacts:/app/artifacts \
+            my-qa-image
+
+      - name: Generate HTML report
+        run: |
+          pip install jinja2
+          python scripts/generate_html_report.py
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v3
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: docs
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1

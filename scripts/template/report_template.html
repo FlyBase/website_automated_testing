@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>QA Test Results</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 1rem 2rem;
+      background-color: #f5f5f5;
+    }
+    h1 {
+      margin-bottom: 0.5rem;
+    }
+    .summary {
+      background-color: #fff;
+      padding: 1rem;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      box-shadow: 0 0 4px rgba(0,0,0,0.1);
+    }
+
+    details {
+      margin-bottom: 0.8rem;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 0.5rem;
+    }
+    summary {
+      font-weight: bold;
+      cursor: pointer;
+      list-style: none;
+      outline: none;
+    }
+    /* Color the summary background depending on test status. We'll do it inline. */
+
+    .explanation {
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+      background-color: #eee;
+      border-radius: 4px;
+    }
+    .artifacts {
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+    }
+    .artifact-link {
+      display: inline-block;
+      margin-right: 1rem;
+    }
+    .screenshots {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      margin: 1rem 0;
+    }
+    .screenshots img {
+      max-width: 200px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<h1>QA Test Results</h1>
+<div class="summary">
+  <p><strong>Passed:</strong> {{ passed_count }} &nbsp;&nbsp; 
+     <strong>Failed:</strong> {{ failed_count }} &nbsp;&nbsp; 
+     <strong>Skipped:</strong> {{ skipped_count }}
+  </p>
+</div>
+
+{% for test in tests %}
+  {% set bgColor = "" %}
+  {% if test.status == "pass" %}
+    {% set bgColor = "lightgreen" %}
+  {% elif test.status == "fail" %}
+    {% set bgColor = "#f8c8c8" %}
+  {% elif test.status == "skipped" %}
+    {% set bgColor = "#dcdcdc" %}
+  {% else %}
+    {% set bgColor = "#fff" %}
+  {% endif %}
+  
+  <details style="background-color: {{ bgColor }};">
+    <summary>{{ test.name }} &mdash; {{ test.status|upper }}</summary>
+    
+    <div class="explanation">
+      <strong>Explanation:</strong> {{ test.explanation }}
+    </div>
+    <div class="artifacts">
+      <h4>Artifacts</h4>
+      {% if test.text_files %}
+        <p>Text File(s): 
+          {% for txt in test.text_files %}
+            <a class="artifact-link" href="../artifacts/{{txt}}" download>{{txt}}</a>
+          {% endfor %}
+        </p>
+      {% endif %}
+      
+      <div class="screenshots">
+        {% if test.screenshots_prod %}
+          <div>
+            <p>Production Screenshot(s):</p>
+            {% for img in test.screenshots_prod %}
+              <a href="../artifacts/{{img}}" target="_blank">
+                <img src="../artifacts/{{img}}" alt="Production screenshot" />
+              </a>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if test.screenshots_target %}
+          <div>
+            <p>Target Screenshot(s):</p>
+            {% for img in test.screenshots_target %}
+              <a href="../artifacts/{{img}}" target="_blank">
+                <img src="../artifacts/{{img}}" alt="Target screenshot" />
+              </a>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if test.screenshots_single %}
+          <div>
+            <p>Single Screenshot(s):</p>
+            {% for img in test.screenshots_single %}
+              <a href="../artifacts/{{img}}" target="_blank">
+                <img src="../artifacts/{{img}}" alt="Single screenshot" />
+              </a>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </details>
+{% endfor %}
+
+</body>
+</html>
