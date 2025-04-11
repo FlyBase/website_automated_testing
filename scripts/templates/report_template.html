@@ -96,7 +96,7 @@
       {% if test.text_files %}
         <p>Text File(s): 
           {% for txt in test.text_files %}
-            <a class="artifact-link" href="../artifacts/{{txt}}" download>{{txt}}</a>
+            <a class="artifact-link" href="artifacts/{{txt}}" download>{{txt}}</a>
           {% endfor %}
         </p>
       {% endif %}
@@ -106,8 +106,8 @@
           <div>
             <p>Production Screenshot(s):</p>
             {% for img in test.screenshots_prod %}
-              <a href="../artifacts/{{img}}" target="_blank">
-                <img src="../artifacts/{{img}}" alt="Production screenshot" />
+              <a href="artifacts/{{img}}" target="_blank">
+                <img src="artifacts/{{img}}" alt="Production screenshot" />
               </a>
             {% endfor %}
           </div>
@@ -116,8 +116,8 @@
           <div>
             <p>Target Screenshot(s):</p>
             {% for img in test.screenshots_target %}
-              <a href="../artifacts/{{img}}" target="_blank">
-                <img src="../artifacts/{{img}}" alt="Target screenshot" />
+              <a href="artifacts/{{img}}" target="_blank">
+                <img src="artifacts/{{img}}" alt="Target screenshot" />
               </a>
             {% endfor %}
           </div>
@@ -126,8 +126,8 @@
           <div>
             <p>Single Screenshot(s):</p>
             {% for img in test.screenshots_single %}
-              <a href="../artifacts/{{img}}" target="_blank">
-                <img src="../artifacts/{{img}}" alt="Single screenshot" />
+              <a href="artifacts/{{img}}" target="_blank">
+                <img src="artifacts/{{img}}" alt="Single screenshot" />
               </a>
             {% endfor %}
           </div>

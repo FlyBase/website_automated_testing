@@ -1,14 +1,17 @@
 name: QA Tests and Publish
 
 on:
-  # You can push or do manual triggers:
-  push:
   workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    environment: main
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -17,37 +20,38 @@ jobs:
         run: docker build -t my-qa-image .
 
       - name: Run QA tests in Docker
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          WAF_SECRET_HEADER: ${{ secrets.AWS_WAF_SECRET }}
         run: |
           mkdir -p artifacts
           docker run --rm \
-            -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
-            -e WAF_SECRET_HEADER="${{ secrets.AWS_WAF_SECRET }}" \
+            -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+            -e WAF_SECRET_HEADER="$WAF_SECRET_HEADER" \
             -v ${{ github.workspace }}/artifacts:/app/artifacts \
             my-qa-image
 
-      - name: Generate HTML report
-        run: |
-          pip install jinja2
-          python scripts/generate_html_report.py
+      - name: Install Jinja2
+        run: pip install jinja2
 
-      # Configure Pages (optional but recommended)
+      - name: Copy test artifacts into docs
+        run: cp -R artifacts docs/artifacts
+
+      - name: Generate HTML report
+        run: python scripts/generate_html_report.py
+
       - name: Configure Pages
         uses: actions/configure-pages@v3
 
-      # Upload site as an artifact
       - name: Upload artifact for Pages
         uses: actions/upload-artifact@v4
         with:
           name: pages
-          path: docs   # The folder where your final index.html is
+          path: docs
 
   deploy:
     needs: build-and-test
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
     steps:
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v1
