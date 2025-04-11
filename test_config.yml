@@ -1,7 +1,7 @@
 tests:
   - name: "GAL4 Drivers Table Broken Page"
     enabled: true
-    url: "https://preview.flybase.org/GAL4/freq_used_drivers/" # Placeholder - Needs specific GAL4 table URL
+    url: "https://preview.flybase.org/GAL4/freq_used_drivers/"
     ticket: WEB-2346
     check_types:
       - text
@@ -41,13 +41,12 @@ tests:
 
   - name: "Ribbons Data Not Regenerated"
     enabled: false
-    url: "https://flybase.org/" # Placeholder - Needs page with ribbons URL
+    url: "https://preview.flybase.org/reports/FBgn0289744#function"
     check_types:
-      - text
       - picture
     compare_to_production: true
     prompt: |
-      Check ribbons data (e.g., GO ribbons) to ensure it has been regenerated with current data. Ref WEB-2346.
+      The ribbons, or small boxes here, should have shades of blue in them. Ref WEB-2346.
 
   - name: "FBco Objects Missing in Hitlists"
     enabled: false
