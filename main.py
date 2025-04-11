@@ -9,7 +9,7 @@ import argparse
 from urllib.parse import urlparse
 
 # Updated OpenAI imports
-from openai import OpenAI, OpenAIError 
+from openai import OpenAI, OpenAIError
 
 # Simplified Selenium Imports (only for navigation and capture)
 from selenium import webdriver
@@ -23,7 +23,7 @@ from selenium.webdriver.support import expected_conditions as EC
 ###############################################################################
 
 # Define the path for artifacts inside the container
-ARTIFACTS_DIR = "/app/artifacts" 
+ARTIFACTS_DIR = "/app/artifacts"
 # Define the base Production URL for comparison purposes
 PROD_BASE_URL = "https://flybase.org"
 
@@ -33,7 +33,8 @@ if not API_KEY:
 
 # Initialize OpenAI client (v1.x)
 client = OpenAI()
-MODEL_NAME = "gpt-4o-mini"
+# Use the new model name if intended
+MODEL_NAME = "gpt-4o-mini" # Changed from gpt-4o
 
 FUNCTION_SCHEMA = [
     {
@@ -174,6 +175,7 @@ def parse_api_response(response):
                         result_status = result_json.get("result", "fail")
                         failed_component = result_json.get("failed_component", "none" if result_status == "pass" else "unknown")
                         explanation = result_json.get("explanation", "No explanation provided.")
+                        # Successfully parsed API response
                         return {
                             "result": result_status,
                             "failed_component": failed_component,
@@ -197,19 +199,22 @@ def parse_api_response(response):
             explanation = f"Error accessing data in API response structure: {e}. Response: {response}"
             print(explanation)
 
+    # Return failure details if parsing failed at any point above
     return {
-        "result": result_status,
-        "failed_component": failed_component,
-        "explanation": explanation
+        "result": result_status, # fail
+        "failed_component": failed_component, # unknown or determined before error
+        "explanation": explanation # Specific error explanation
     }
 
 def run_test(driver, test_def):
     """
     Execute a basic test (navigate, capture) based on YAML config.
-    Returns a dict with test name, result, failed_component, and explanation.
+    Returns a dict with test name, prompt, result, failed_component, and explanation.
     """
     test_name = test_def.get("name", "Unnamed Test")
     safe_test_name = "".join(c if c.isalnum() or c in ('_','-') else '_' for c in test_name).rstrip('_')
+    # <<< Get prompt early to include in all return paths >>>
+    prompt = test_def.get("prompt", "")
 
     enabled = test_def.get("enabled", True)
     if not enabled:
@@ -218,7 +223,8 @@ def run_test(driver, test_def):
             "test_name": test_name,
             "result": "skipped",
             "failed_component": "none",
-            "explanation": "Test is disabled."
+            "explanation": "Test is disabled.",
+            "prompt": prompt # <<< Include prompt >>>
         }
 
     url_from_yaml = test_def.get("url")
@@ -228,12 +234,13 @@ def run_test(driver, test_def):
             "test_name": test_name,
             "result": "skipped",
             "failed_component": "none",
-            "explanation": "Missing 'url'."
+            "explanation": "Missing 'url'.",
+            "prompt": prompt # <<< Include prompt >>>
         }
 
     compare_to_production = test_def.get("compare_to_production", False)
     check_types = test_def.get("check_types", [])
-    prompt = test_def.get("prompt", "")
+    # Prompt already retrieved above
     ticket = test_def.get("ticket", "")
 
     target_url = url_from_yaml
@@ -260,17 +267,20 @@ def run_test(driver, test_def):
 
     system_content = (
         "You are a meticulous QA automation assistant specializing in website visual and textual consistency..."
+        # Shorten system prompt if needed for context window or cost
     )
     messages = [{"role": "system", "content": system_content}]
     user_content_parts = []
     screenshots_data = []
 
+    # This is the text part sent to the LLM, combining test name, prompt, and ticket
     prompt_display = f"Test: {test_name}\nPrompt: {prompt}"
     if ticket:
         prompt_display += f"\nReference Ticket: {ticket}"
     user_content_parts.append({"type": "text", "text": prompt_display})
 
     try:
+        # --- Page interaction and data gathering ---
         if compare_to_production and prod_url:
             user_content_parts.append({"type": "text", "text": f"\n--- Comparing Production vs Target ---"})
             user_content_parts.append({"type": "text", "text": f"Production URL: {prod_url}"})
@@ -283,13 +293,10 @@ def run_test(driver, test_def):
                 prod_text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_prod.txt")
                 target_text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_target.txt")
                 try:
-                    with open(prod_text_path, "w", encoding="utf-8") as f:
-                        f.write(prod_text)
-                    with open(target_text_path, "w", encoding="utf-8") as f:
-                        f.write(target_text)
+                    with open(prod_text_path, "w", encoding="utf-8") as f: f.write(prod_text)
+                    with open(target_text_path, "w", encoding="utf-8") as f: f.write(target_text)
                     print(f"Saved text artifacts to {ARTIFACTS_DIR}/")
-                except Exception as e:
-                    print(f"Warning: Could not save text files for {test_name}: {e}")
+                except Exception as e: print(f"Warning: Could not save text files for {test_name}: {e}")
 
                 user_content_parts.append({"type": "text", "text": f"\nProduction Text:\n```\n{prod_text}\n```"})
                 user_content_parts.append({"type": "text", "text": f"\nTarget State Text:\n```\n{target_text}\n```"})
@@ -307,7 +314,7 @@ def run_test(driver, test_def):
                 if target_img_uri:
                     screenshots_data.append({"type": "image_url", "image_url": {"url": target_img_uri}})
                     user_content_parts.append({"type": "text", "text": "\nTarget State Screenshot:"})
-        else:
+        else: # Single page test
             user_content_parts.append({"type": "text", "text": f"\n--- Single Page Test ---"})
             user_content_parts.append({"type": "text", "text": f"URL Tested: {target_url}"})
 
@@ -315,12 +322,9 @@ def run_test(driver, test_def):
                 page_text = get_page_text(driver, target_url)
                 text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_single.txt")
                 try:
-                    with open(text_path, "w", encoding="utf-8") as f:
-                        f.write(page_text)
+                    with open(text_path, "w", encoding="utf-8") as f: f.write(page_text)
                     print(f"Saved text artifact to {ARTIFACTS_DIR}/")
-                except Exception as e:
-                    print(f"Warning: Could not save text file for {test_name}: {e}")
-
+                except Exception as e: print(f"Warning: Could not save text file for {test_name}: {e}")
                 user_content_parts.append({"type": "text", "text": f"\nPage Text:\n```\n{page_text}\n```"})
 
             if "picture" in check_types:
@@ -332,32 +336,40 @@ def run_test(driver, test_def):
                     user_content_parts.append({"type": "text", "text": "\nPage Screenshot:"})
 
     except Exception as page_err:
+        # --- Handle errors during page loading/capture ---
         error_msg = f"Failed during page load or data capture for test '{test_name}'. URL(s): {target_url}"
-        if prod_url:
-            error_msg += f", {prod_url}"
+        if prod_url: error_msg += f", {prod_url}"
         error_msg += f". Error: {page_err}"
         print(f"    ERROR: {error_msg}")
-        try:
+        try: # Attempt failure screenshot
             fail_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_FAILURE_capture.png")
-            get_page_screenshot(driver, None, fail_screenshot_path)
-        except Exception as screen_err:
-            print(f"    Could not take failure screenshot: {screen_err}")
+            get_page_screenshot(driver, None, fail_screenshot_path) # Pass None for URL to screenshot current state
+        except Exception as screen_err: print(f"    Could not take failure screenshot: {screen_err}")
         return {
             "test_name": test_name,
             "result": "fail",
             "failed_component": "page load",
-            "explanation": error_msg
+            "explanation": error_msg,
+            "prompt": prompt # <<< Include prompt >>>
         }
 
+    # --- Prepare and call OpenAI API ---
     user_message_content_list = user_content_parts + screenshots_data
     messages.append({"role": "user", "content": user_message_content_list})
 
-    print("Prompt snippet:", prompt_display[:500], "...\n")
+    print("Prompt snippet for LLM call:", prompt_display[:200], "...\n") # Log snippet sent to LLM
 
     response = call_openai_api(messages)
-    result_data = parse_api_response(response)
-    result_data["test_name"] = test_name
-    return result_data
+    result_data = parse_api_response(response) # Contains result, failed_component, explanation
+
+    # --- Combine test info with API result ---
+    final_result = {
+        "test_name": test_name,
+        "prompt": prompt, # <<< Include prompt >>>
+        **result_data # Unpack result, failed_component, explanation
+    }
+    return final_result
+
 
 def main(config_path):
     # Create the artifacts directory
@@ -366,6 +378,7 @@ def main(config_path):
         print(f"Artifacts will be saved to container path: {ARTIFACTS_DIR}")
     except OSError as e:
         print(f"Error creating artifacts directory {ARTIFACTS_DIR}: {e}")
+        # Decide if you want to exit or continue if dir creation fails
 
     tests = load_yaml_config(config_path)
     if not tests:
@@ -381,7 +394,7 @@ def main(config_path):
     for test_def in tests:
         result = None
         try:
-            result = run_test(driver, test_def)
+            result = run_test(driver, test_def) # run_test now returns the prompt too
             status = result.get("result")
             if status == "pass":
                 passed_count += 1
@@ -391,17 +404,19 @@ def main(config_path):
                 skipped_count += 1
         except Exception as err:
             test_name_fallback = test_def.get("name", "Unnamed Test")
+            prompt_fallback = test_def.get("prompt", "") # Get prompt for error case too
             print(f"Test '{test_name_fallback}' encountered an unhandled exception: {err}")
             result = {
                 "test_name": test_name_fallback,
                 "result": "fail",
                 "failed_component": "test execution",
-                "explanation": f"Unhandled Exception occurred: {err}"
+                "explanation": f"Unhandled Exception occurred: {err}",
+                "prompt": prompt_fallback # <<< Include prompt >>>
             }
             failed_count += 1
 
         if result:
-            all_results.append(result)
+            all_results.append(result) # result already contains the prompt
 
     driver.quit()
 
@@ -413,6 +428,7 @@ def main(config_path):
     except Exception as e:
         print(f"\nError saving results to {results_filename}: {e}")
 
+    # --- Print Summary ---
     print("\n--- TEST SUMMARY ---")
     print(f"Total tests defined: {len(tests)}")
     print(f"Tests run: {passed_count + failed_count}")
@@ -425,18 +441,21 @@ def main(config_path):
         for res in all_results:
             if res.get("result") == "fail":
                 print(f"  Test FAILED: {res.get('test_name')}")
+                print(f"    Prompt: {res.get('prompt', 'N/A')}") # <<< Also print prompt in console summary >>>
                 failed_comp = res.get('failed_component', 'N/A')
                 print(f"    Failed Component: {failed_comp}")
                 print(f"    Explanation: {res.get('explanation', 'No explanation.')}\n")
         print("-------------------------")
+    # ... [rest of the summary print statements] ...
     elif passed_count > 0 and failed_count == 0:
         print("\nALL EXECUTED TESTS PASSED.")
     elif skipped_count == len(tests):
         print("\nALL TESTS WERE SKIPPED.")
     elif passed_count == 0 and failed_count == 0 and skipped_count < len(tests):
         print("\nNO TESTS FAILED, but some tests may not have run as expected.")
-    else:
+    else: # Only skipped tests or no tests defined/run
         print("\nNO TESTS FAILED (excluding skipped).")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run QA tests using OpenAI's multimodal API and YAML config.")
