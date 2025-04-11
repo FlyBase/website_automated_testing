@@ -47,9 +47,9 @@ tests:
     compare_to_production: true
     actions_before_capture:
     - action: click
-        locate_by: link_text
-        value: "Function"
-        wait_after_s: 5
+      locate_by: link_text
+      value: "Function"
+      wait_after_s: 5
     prompt: |
       Some of the small square boxes above the words molecular function, biological process, and cellular component, should have shades of blue in them.
 
