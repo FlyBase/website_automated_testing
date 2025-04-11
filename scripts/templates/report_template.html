@@ -21,6 +21,27 @@
       box-shadow: 0 0 4px rgba(0,0,0,0.1);
     }
 
+    /* <<< Styles for Control Buttons >>> */
+    .controls {
+      margin-bottom: 1.5rem; /* Add space below buttons */
+      padding-left: 0.5rem; /* Align slightly with details */
+    }
+    .control-button {
+      padding: 6px 12px; /* Button size */
+      margin-right: 10px; /* Space between buttons */
+      font-size: 0.9em;
+      cursor: pointer;
+      background-color: #e7e7e7; /* Light grey background */
+      border: 1px solid #ccc; /* Simple border */
+      border-radius: 4px; /* Match details border radius */
+      color: #333;
+    }
+    .control-button:hover {
+      background-color: #ddd; /* Slightly darker on hover */
+    }
+    /* <<< End Control Button Styles >>> */
+
+
     details {
       margin-bottom: 0.8rem;
       background-color: #fff;
@@ -73,7 +94,7 @@
       cursor: pointer;
       height: auto; /* Add height auto for aspect ratio */
     }
-     /* --- END OF ORIGINAL STYLES (with .prompt added) --- */
+     /* --- END OF ORIGINAL STYLES (with .prompt and button styles added) --- */
   </style>
 </head>
 <body>
@@ -86,6 +107,10 @@
   </p>
 </div>
 
+<div class="controls">
+  <button id="open-all-btn" class="control-button">Open All</button>
+  <button id="close-all-btn" class="control-button">Close All</button>
+</div>
 {% for test in tests %}
   {# Use original background color logic #}
   {% set bgColor = "" %}
@@ -100,7 +125,8 @@
   {% endif %}
 
   {# Use original padding/structure for details #}
-  <details style="background-color: {{ bgColor }};">
+  {# Add class="test-details" to target with JS #}
+  <details class="test-details" style="background-color: {{ bgColor }};">
     {# Use original summary structure #}
     <summary>{{ test.name }} &mdash; {{ test.status|upper if test.status else 'UNKNOWN' }}</summary>
 
@@ -142,11 +168,11 @@
         {% endif %}
         {% if test.screenshots_target %}
           <div>
-             {# Use original label #}
-            <p>Preview Screenshot(s):</p>
+             {# Use original label - changed back to Target #}
+            <p>Target Screenshot(s):</p>
             {% for img in test.screenshots_target %}
               <a href="artifacts/{{img}}" target="_blank">
-                <img src="artifacts/{{img}}" alt="Preview screenshot" />
+                <img src="artifacts/{{img}}" alt="Target screenshot" />
               </a>
             {% endfor %}
           </div>
@@ -168,5 +194,27 @@
   </details>
 {% endfor %}
 
+<script>
+  function setAllDetails(openState) {
+    // Find all details elements that represent tests (added class="test-details")
+    const allDetails = document.querySelectorAll('details.test-details');
+    allDetails.forEach(detail => {
+      detail.open = openState;
+    });
+  }
+
+  // Add event listeners after the DOM is loaded
+  document.addEventListener('DOMContentLoaded', (event) => {
+    const openAllButton = document.getElementById('open-all-btn');
+    const closeAllButton = document.getElementById('close-all-btn');
+
+    if (openAllButton) {
+      openAllButton.addEventListener('click', () => setAllDetails(true));
+    }
+    if (closeAllButton) {
+      closeAllButton.addEventListener('click', () => setAllDetails(false));
+    }
+  });
+</script>
 </body>
 </html>
