@@ -304,22 +304,22 @@ def run_test(driver, test_def):
     # Prompt already retrieved above
     ticket = test_def.get("ticket", "")
 
-    target_url = url_from_yaml
+    preview_url = url_from_yaml
     prod_url = None
 
     if compare_to_production:
         try:
             # Construct prod URL preserving path, query, and fragment from target
-            parsed_target = urlparse(target_url)
+            parsed_target = urlparse(preview_url)
             prod_path_query_fragment = urlunparse(('', '', parsed_target.path, parsed_target.params, parsed_target.query, parsed_target.fragment))
             prod_url = urljoin(PROD_BASE_URL, prod_path_query_fragment) # Handles relative paths correctly
         except Exception as e:
-            print(f"Warning: Could not construct production URL for comparison from {target_url}: {e}")
+            print(f"Warning: Could not construct production URL for comparison from {preview_url}: {e}")
             compare_to_production = False # Disable comparison if prod URL fails
             prod_url = None
 
     print(f"\n=== Running Test: {test_name} ===")
-    print(f"Target URL: {target_url}")
+    print(f"Preview URL: {preview_url}")
     if compare_to_production and prod_url:
         print(f"Comparing against Production URL: {prod_url}")
 
@@ -340,43 +340,43 @@ def run_test(driver, test_def):
     try:
         # --- Page interaction and data gathering ---
         if compare_to_production and prod_url:
-            user_content_parts.append({"type": "text", "text": f"\n--- Comparing Production vs Target ---"})
+            user_content_parts.append({"type": "text", "text": f"\n--- Comparing Production vs Preview ---"})
             user_content_parts.append({"type": "text", "text": f"Production URL: {prod_url}"})
-            user_content_parts.append({"type": "text", "text": f"Target URL: {target_url}"})
+            user_content_parts.append({"type": "text", "text": f"Preview URL: {preview_url}"})
 
             # Get text *after* potential scrolling (handled in get_page_text)
             prod_text = get_page_text(driver, prod_url) if "text" in check_types else "Text check not requested."
-            target_text = get_page_text(driver, target_url) if "text" in check_types else "Text check not requested."
+            preview_text = get_page_text(driver, preview_url) if "text" in check_types else "Text check not requested."
 
             if "text" in check_types:
                 prod_text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_prod.txt")
-                target_text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_target.txt")
+                preview_text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_preview.txt")
                 try:
                     with open(prod_text_path, "w", encoding="utf-8") as f: f.write(prod_text)
-                    with open(target_text_path, "w", encoding="utf-8") as f: f.write(target_text)
+                    with open(preview_text_path, "w", encoding="utf-8") as f: f.write(preview_text)
                     print(f"Saved text artifacts to {ARTIFACTS_DIR}/")
                 except Exception as e: print(f"Warning: Could not save text files for {test_name}: {e}")
 
                 user_content_parts.append({"type": "text", "text": f"\nProduction Text:\n```\n{prod_text}\n```"})
-                user_content_parts.append({"type": "text", "text": f"\nTarget State Text:\n```\n{target_text}\n```"})
+                user_content_parts.append({"type": "text", "text": f"\nPreview State Text:\n```\n{preview_text}\n```"})
 
             if "picture" in check_types:
                 prod_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_prod.png")
-                target_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_target.png")
+                preview_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_preview.png")
                 # Get screenshots *after* potential scrolling (handled in get_page_screenshot)
                 prod_screenshot_bytes = get_page_screenshot(driver, prod_url, prod_screenshot_path)
-                target_screenshot_bytes = get_page_screenshot(driver, target_url, target_screenshot_path)
+                preview_screenshot_bytes = get_page_screenshot(driver, preview_url, preview_screenshot_path)
                 prod_img_uri = encode_image_to_data_uri(prod_screenshot_bytes)
-                target_img_uri = encode_image_to_data_uri(target_screenshot_bytes)
+                preview_img_uri = encode_image_to_data_uri(preview_screenshot_bytes)
                 if prod_img_uri:
                     screenshots_data.append({"type": "image_url", "image_url": {"url": prod_img_uri}})
                     user_content_parts.append({"type": "text", "text": "\nProduction Screenshot:"})
-                if target_img_uri:
-                    screenshots_data.append({"type": "image_url", "image_url": {"url": target_img_uri}})
-                    user_content_parts.append({"type": "text", "text": "\nTarget State Screenshot:"})
+                if preview_img_uri:
+                    screenshots_data.append({"type": "image_url", "image_url": {"url": preview_img_uri}})
+                    user_content_parts.append({"type": "text", "text": "\nPreview State Screenshot:"})
         else: # Single page test
             user_content_parts.append({"type": "text", "text": f"\n--- Single Page Test ---"})
-            user_content_parts.append({"type": "text", "text": f"URL Tested: {target_url}"})
+            user_content_parts.append({"type": "text", "text": f"URL Tested: {preview_url}"})
 
             if "text" in check_types:
                  # Get text *after* potential scrolling (handled in get_page_text)

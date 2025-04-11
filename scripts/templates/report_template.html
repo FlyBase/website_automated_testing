@@ -166,13 +166,12 @@
             {% endfor %}
           </div>
         {% endif %}
-        {% if test.screenshots_target %}
+        {% if test.screenshots_preview %}
           <div>
-             {# Use original label - changed back to Target #}
-            <p>Target Screenshot(s):</p>
-            {% for img in test.screenshots_target %}
+            <p>Preview Screenshot(s):</p>
+            {% for img in test.screenshots_preview %}
               <a href="artifacts/{{img}}" target="_blank">
-                <img src="artifacts/{{img}}" alt="Target screenshot" />
+                <img src="artifacts/{{img}}" alt="Preview screenshot" />
               </a>
             {% endfor %}
           </div>

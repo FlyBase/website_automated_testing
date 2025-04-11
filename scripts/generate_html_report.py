@@ -67,7 +67,7 @@ def main():
 
         # Grab screenshots
         screenshots_prod = []
-        screenshots_target = []
+        screenshots_preview = []
         screenshots_single = []
 
         for path in glob.glob(f"{artifact_search_path}.png"):
@@ -75,8 +75,8 @@ def main():
             # More robust checking for screenshot types
             if filename.endswith("_prod.png"):
                 screenshots_prod.append(filename)
-            elif filename.endswith("_target.png"):
-                screenshots_target.append(filename)
+            elif filename.endswith("_preview.png"):
+                screenshots_preview.append(filename)
             elif filename.endswith("_single.png"):
                 screenshots_single.append(filename)
             # Add handling for the _FAILURE_capture.png? Might need a separate list.
@@ -91,7 +91,7 @@ def main():
             "prompt": prompt, # <<< Add prompt to template data >>>
             "text_files": text_files,
             "screenshots_prod": screenshots_prod,
-            "screenshots_target": screenshots_target,
+            "screenshots_preview": screenshots_preview,
             "screenshots_single": screenshots_single
             # "screenshots_failure": screenshots_failure # If adding failure screenshots
         })
