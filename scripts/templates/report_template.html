@@ -4,26 +4,21 @@
   <meta charset="UTF-8" />
   <title>QA Test Results</title>
   <style>
+    /* --- START OF ORIGINAL STYLES --- */
     body {
       font-family: Arial, sans-serif;
       margin: 1rem 2rem;
       background-color: #f5f5f5;
-      line-height: 1.5; /* Improve readability */
     }
     h1 {
       margin-bottom: 0.5rem;
-      color: #333;
     }
     .summary {
       background-color: #fff;
       padding: 1rem;
       border-radius: 6px;
       margin-bottom: 1rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .summary p {
-        margin: 0;
-        font-size: 1.1em;
+      box-shadow: 0 0 4px rgba(0,0,0,0.1);
     }
 
     details {
@@ -31,91 +26,54 @@
       background-color: #fff;
       border: 1px solid #ccc;
       border-radius: 4px;
-      padding: 0.8rem 1rem; /* Slightly more padding */
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      padding: 0.5rem;
     }
     summary {
       font-weight: bold;
       cursor: pointer;
-      list-style: none; /* Remove default marker */
+      list-style: none; /* Keep this to avoid default marker */
       outline: none;
-      margin-bottom: 0.5rem; /* Space below summary when open */
-      font-size: 1.05em;
     }
-    summary::-webkit-details-marker { display: none; } /* Chrome/Safari */
-    summary::marker { display: none; } /* Firefox */
+    /* Color the summary background depending on test status. We'll do it inline. */
 
-    /* Add custom marker */
-    summary::before {
-        content: '► '; /* Collapsed state */
-        font-size: 0.8em;
-        margin-right: 5px;
-    }
-    details[open] > summary::before {
-        content: '▼ '; /* Expanded state */
-    }
-
-    .explanation, .prompt { /* Apply similar styling to both */
+    .explanation {
       margin: 0.5rem 0;
-      padding: 0.8rem;
+      padding: 0.5rem;
       background-color: #eee;
       border-radius: 4px;
-      border-left: 4px solid #aaa; /* Add a visual bar */
-      word-wrap: break-word; /* Prevent long prompts from overflowing */
+      word-wrap: break-word; /* Keep word-wrap for long text */
     }
+    /* <<< Add style for prompt, mirroring explanation >>> */
     .prompt {
-        background-color: #eaf2fa; /* Slightly different background for prompt */
-        border-left-color: #7aade9;
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+      background-color: #eee; /* Same background as explanation */
+      border-radius: 4px;
+      word-wrap: break-word; /* Keep word-wrap for long text */
     }
 
     .artifacts {
-      margin: 1rem 0 0.5rem 0; /* Add margin top */
-      padding-top: 0.5rem;
-      border-top: 1px dashed #ddd; /* Separator */
-    }
-    .artifacts h4 {
-        margin-top: 0;
-        margin-bottom: 0.5rem;
-        color: #555;
+      margin: 0.5rem 0;
+      padding: 0.5rem;
     }
     .artifact-link {
       display: inline-block;
       margin-right: 1rem;
-      margin-bottom: 0.5rem; /* Space below links */
-      color: #0366d6;
-      text-decoration: none;
-    }
-    .artifact-link:hover {
-        text-decoration: underline;
     }
     .screenshots {
       display: flex;
-      gap: 1.5rem; /* Slightly smaller gap */
+      gap: 2rem;
       flex-wrap: wrap;
-      margin-top: 0.8rem;
-    }
-    .screenshots div { /* Container for each screenshot type */
-        flex: 1 1 200px; /* Allow wrapping */
-        min-width: 150px;
-    }
-    .screenshots p { /* Label for screenshots */
-        margin: 0 0 0.5rem 0;
-        font-weight: bold;
-        color: #444;
+      margin: 1rem 0;
     }
     .screenshots img {
       max-width: 200px;
-      height: auto; /* Maintain aspect ratio */
       border: 1px solid #ccc;
       border-radius: 4px;
       cursor: pointer;
-      transition: transform 0.2s ease-in-out;
-      display: block; /* Prevent extra space below image */
+      height: auto; /* Add height auto for aspect ratio */
     }
-    .screenshots img:hover {
-        transform: scale(1.05);
-        border-color: #888;
-    }
+     /* --- END OF ORIGINAL STYLES (with .prompt added) --- */
   </style>
 </head>
 <body>
@@ -129,23 +87,26 @@
 </div>
 
 {% for test in tests %}
+  {# Use original background color logic #}
   {% set bgColor = "" %}
   {% if test.status == "pass" %}
-    {% set bgColor = "#e6ffed" %} {# Lighter green #}
+    {% set bgColor = "lightgreen" %}
   {% elif test.status == "fail" %}
-    {% set bgColor = "#ffebee" %} {# Lighter red #}
+    {% set bgColor = "#f8c8c8" %}
   {% elif test.status == "skipped" %}
-    {% set bgColor = "#f5f5f5" %} {# Lighter grey #}
+    {% set bgColor = "#dcdcdc" %}
   {% else %}
     {% set bgColor = "#fff" %}
   {% endif %}
 
+  {# Use original padding/structure for details #}
   <details style="background-color: {{ bgColor }};">
-    {# Display test name and status in the summary #}
+    {# Use original summary structure #}
     <summary>{{ test.name }} &mdash; {{ test.status|upper if test.status else 'UNKNOWN' }}</summary>
 
-    {# Display Explanation #}
+    {# Original Explanation Div #}
     <div class="explanation">
+      {# Add robustness for missing explanation #}
       <strong>Explanation:</strong> {{ test.explanation if test.explanation else 'N/A' }}
     </div>
 
@@ -156,58 +117,54 @@
     </div>
     {% endif %}
 
-    {# Display Artifacts #}
+    {# Original Artifacts Div Structure #}
     <div class="artifacts">
       <h4>Artifacts</h4>
       {% if test.text_files %}
         <p>Text File(s):
           {% for txt in test.text_files %}
-            {# Link points to artifacts/<filename> relative to index.html #}
             <a class="artifact-link" href="artifacts/{{txt}}" download>{{txt}}</a>
           {% endfor %}
         </p>
       {% endif %}
 
-      {# Display Screenshots #}
       <div class="screenshots">
         {% if test.screenshots_prod %}
           <div>
-            <p>Production:</p>
+            {# Use original label #}
+            <p>Production Screenshot(s):</p>
             {% for img in test.screenshots_prod %}
-              <a href="artifacts/{{img}}" target="_blank" title="View Production Screenshot: {{img}}">
-                <img src="artifacts/{{img}}" alt="Production screenshot: {{img}}" />
+              <a href="artifacts/{{img}}" target="_blank">
+                <img src="artifacts/{{img}}" alt="Production screenshot" />
               </a>
             {% endfor %}
           </div>
         {% endif %}
         {% if test.screenshots_target %}
           <div>
-            <p>Target:</p>
+             {# Use original label #}
+            <p>Target Screenshot(s):</p>
             {% for img in test.screenshots_target %}
-              <a href="artifacts/{{img}}" target="_blank" title="View Preview Screenshot: {{img}}">
-                <img src="artifacts/{{img}}" alt="Preview screenshot: {{img}}" />
+              <a href="artifacts/{{img}}" target="_blank">
+                <img src="artifacts/{{img}}" alt="Target screenshot" />
               </a>
             {% endfor %}
           </div>
         {% endif %}
         {% if test.screenshots_single %}
           <div>
-            <p>Single:</p> {# Changed label for clarity #}
+             {# Use original label #}
+            <p>Single Screenshot(s):</p>
             {% for img in test.screenshots_single %}
-              <a href="artifacts/{{img}}" target="_blank" title="View Screenshot: {{img}}">
-                <img src="artifacts/{{img}}" alt="Single screenshot: {{img}}" />
+              <a href="artifacts/{{img}}" target="_blank">
+                <img src="artifacts/{{img}}" alt="Single screenshot" />
               </a>
             {% endfor %}
           </div>
         {% endif %}
-        {# Add section for failure screenshots if implemented #}
-        {# {% if test.screenshots_failure %} ... {% endif %} #}
       </div>
-      {# Show message if no artifacts found for this test #}
-      {% if not test.text_files and not test.screenshots_prod and not test.screenshots_target and not test.screenshots_single %}
-        <p><em>No artifacts generated for this test.</em></p>
-      {% endif %}
-    </div> {# End artifacts div #}
+       {# Removed the "No artifacts" message to match original #}
+    </div>
   </details>
 {% endfor %}
 
