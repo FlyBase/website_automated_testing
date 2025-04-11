@@ -115,6 +115,7 @@ tests:
     check_types:
       - picture
     compare_to_production: true
+    extra_wait_s: 5
     actions_before_capture:
   - action: click
     locate_by: css_selector
