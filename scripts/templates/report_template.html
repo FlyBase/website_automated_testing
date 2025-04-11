@@ -65,14 +65,13 @@
       word-wrap: break-word; /* Keep word-wrap for long text */
       white-space: pre-wrap; /* Ensure line breaks are respected */
     }
-    /* <<< Add style for prompt, mirroring explanation >>> */
     .prompt {
       margin: 0.5rem 0;
       padding: 0.5rem;
       background-color: #eee; /* Same background as explanation */
       border-radius: 4px;
       word-wrap: break-word; /* Keep word-wrap for long text */
-      white-space: pre-wrap; /* Ensure line breaks are respected */
+      white-space: pre-wrap; /* <<< ADDED: Preserve whitespace/newlines in prompt >>> */
     }
 
     .artifacts {
@@ -97,10 +96,10 @@
       height: auto; /* Add height auto for aspect ratio */
       vertical-align: top; /* Align images better if heights differ */
     }
-    .screenshots > div { /* Style for prod/preview containers */
+     .screenshots > div { /* Style for prod/preview containers */
        flex-shrink: 0; /* Prevent shrinking if space is tight */
     }
-     /* --- END OF ORIGINAL STYLES (with prompt styles added/adjusted) --- */
+     /* --- END OF ORIGINAL STYLES (with .prompt styles adjusted) --- */
   </style>
 </head>
 <body>
@@ -145,8 +144,8 @@
     {# <<< Display Original Prompt if available >>> #}
     {% if test.prompt %}
     <div class="prompt">
-      {# Using <pre> tag within div to better preserve formatting from YAML #}
-      <strong>Original Prompt:</strong><pre style="white-space: pre-wrap; word-wrap: break-word; margin-top: 0.2em; margin-bottom: 0; font-family: inherit;">{{ test.prompt }}</pre>
+      {# REMOVED <pre> tag, added white-space: pre-wrap to .prompt CSS class #}
+      <strong>Original Prompt:</strong> {{ test.prompt }}
     </div>
     {% endif %}
 
