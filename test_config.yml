@@ -228,13 +228,3 @@ tests:
     compare_to_production: true
     prompt: |
       Search for newly added metabolic reports; verify they appear in search suggestions drop-down. Ref WEB-2416, WEB-2419.
-
-  - name: "BLAST Button Leads to Service Unavailable"
-    enabled: false
-    url: "https://flybase.org/" # Placeholder - Needs page with BLAST button URL
-    check_types:
-      - text
-      - picture
-    compare_to_production: true
-    prompt: |
-      Verify the BLAST button does not lead to a 'service unavailable' page. Ref WEB-2416, WEB-2420.
