@@ -6,6 +6,7 @@ tests:
     check_types:
       - picture
     compare_to_production: true
+    extra_wait_s: 10
     prompt: |
       Verify the Frequently Used GAL4 Drivers table does not show a 'Something is broken' error page.
 
