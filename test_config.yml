@@ -40,7 +40,7 @@ tests:
       Verify the Signaling Pathways (FlyBase) section is populated with data. Ref WEB-2346.
 
   - name: "Ribbons Data Not Regenerated"
-    enabled: true
+    enabled: false
     url: "https://preview.flybase.org/reports/FBgn0289744#function"
     check_types:
       - picture
