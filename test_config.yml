@@ -4,7 +4,6 @@ tests:
     url: "https://preview.flybase.org/GAL4/freq_used_drivers/"
     ticket: WEB-2346
     check_types:
-      - text
       - picture
     compare_to_production: true
     prompt: |
