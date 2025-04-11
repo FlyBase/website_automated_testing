@@ -50,11 +50,16 @@ tests:
 
   - name: "FCA Expression Ribbon Data Not Regenerated"
     enabled: true
-    url: "https://preview.flybase.org/reports/FBgn0289744#expression"
+    url: "https://preview.flybase.org/reports/FBgn0289744"
     check_types:
       - picture
     compare_to_production: true
-    extra_wait_s: 10
+    extra_wait_s: 5
+    actions_before_capture:
+    - action: click
+      locate_by: css_selector # Options: css_selector, xpath, id, link_text, partial_link_text, class_name, tag_name
+      value: "a.js-trigger-open[data-toggle-target='expression_sub']" # Use a specific selector for the link
+      wait_after_s: 5 # Optional wait after click for content to load
     prompt: |
       Some of the small square boxes above the words "adult cell types - Fly Cell Atlas scRNA-seq", should have shades of blue or maroon in them.
 
