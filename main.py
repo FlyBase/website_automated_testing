@@ -1,3 +1,12 @@
+# <<< Assume all imports and helper functions above this are the same >>>
+# Imports: os, sys, time, json, base64, yaml, difflib, argparse, urllib.parse
+# OpenAI imports
+# Selenium imports and exceptions
+# Config constants: ARTIFACTS_DIR, PROD_BASE_URL, etc.
+# Functions: setup_selenium, wait_for_page_conditions, perform_actions,
+#            capture_page_text, capture_page_screenshot, encode_image_to_data_uri,
+#            load_yaml_config, call_openai_api, parse_api_response
+
 import os
 import sys
 import time
@@ -97,24 +106,22 @@ def setup_selenium():
 
 def wait_for_page_conditions(driver, url_loaded, extra_wait_s=None):
     """Handles waiting for readyState, fragment scroll, and applies a fixed wait."""
-    # ... (Wait logic remains the same, uses url_loaded for logging) ...
-        # 1. Wait for basic page load state (increased timeout slightly)
+    # ... (Wait logic remains the same) ...
     WebDriverWait(driver, 25).until(lambda d: d.execute_script('return document.readyState') == 'complete')
     print(f"    Page '{url_loaded}' loaded (readyState complete).")
 
     # 2. Handle fragment scrolling if present
-    scroll_wait = 1.0 # Time to wait after attempting scroll
+    scroll_wait = 1.0
     _base, fragment = urldefrag(url_loaded)
     if fragment:
         try:
             print(f"    Fragment '#{fragment}' detected. Attempting to scroll into view.")
-            # Wait slightly longer for element presence if it might be dynamic
             target_element = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.ID, fragment))
             )
             driver.execute_script("arguments[0].scrollIntoView(true);", target_element)
             print(f"    Executed scrollIntoView for ID '{fragment}'.")
-            time.sleep(scroll_wait) # Pause after scroll command
+            time.sleep(scroll_wait)
         except (NoSuchElementException, TimeoutException):
              print(f"    Warning: Could not find/scroll to element with ID '{fragment}'.")
         except JavascriptException as js_err:
@@ -123,10 +130,9 @@ def wait_for_page_conditions(driver, url_loaded, extra_wait_s=None):
              print(f"    Warning: Error during scrolling attempt for '#{fragment}': {scroll_err}")
 
     # 3. Apply fixed wait (either default or override)
-    wait_duration = DEFAULT_POST_LOAD_WAIT_S # Start with default
+    wait_duration = DEFAULT_POST_LOAD_WAIT_S
     if extra_wait_s is not None:
         try:
-            # Ensure the value is a valid positive number
             custom_wait = float(extra_wait_s)
             if custom_wait >= 0:
                 wait_duration = custom_wait
@@ -138,13 +144,13 @@ def wait_for_page_conditions(driver, url_loaded, extra_wait_s=None):
     else:
         print(f"    Applying default extra wait: {wait_duration}s")
 
-    # Execute the final wait
     if wait_duration > 0:
         time.sleep(wait_duration)
 
-# <<< NEW: Function to handle actions >>>
+
 def perform_actions(driver, actions):
     """ Performs a list of actions defined in the YAML """
+    # ... (perform_actions function remains the same) ...
     if not actions:
         return True # No actions to perform
 
@@ -209,20 +215,15 @@ def perform_actions(driver, actions):
             except Exception as e:
                 print(f"    ERROR: Unexpected error during {action_desc}: {e}")
                 return False
-        # --- Add elif for other action types (e.g., input text) here later ---
-        # elif action_type == "input_text":
-        #     text_value = action_def.get("text")
-        #     # ... logic to find element and send keys ...
         else:
             print(f"    WARNING: Unsupported action type '{action_type}' in {action_desc}. Skipping.")
-            # Continue to next action, don't fail the whole sequence for unsupported type
 
     print("    Finished performing actions.")
-    return True # All specified actions completed successfully
+    return True
 
-# <<< REFACTORED: Capture functions now ONLY capture current state >>>
 def capture_page_text(driver):
     """Fetch the entire visible text from the CURRENT page body."""
+    # ... (capture_page_text remains the same) ...
     try:
         body_element = driver.find_element(By.XPATH, "//body")
         return body_element.text
@@ -232,6 +233,7 @@ def capture_page_text(driver):
 
 def capture_page_screenshot(driver, screenshot_filename_with_path):
     """Capture screenshot of the CURRENT page state."""
+    # ... (capture_page_screenshot remains the same) ...
     try:
         # Ensure directory exists
         os.makedirs(os.path.dirname(screenshot_filename_with_path), exist_ok=True)
@@ -293,7 +295,7 @@ def call_openai_api(messages):
 
 def parse_api_response(response):
     """Parse the response from OpenAI - returns a dict with result, failed_component, explanation."""
-    # ... (Parsing remains the same, but ensure 'action' is handled if needed) ...
+    # ... (Parsing remains the same) ...
     result_status = "fail"; failed_component = "unknown"; explanation = "Could not parse API response or API call failed."
     if not response: explanation = "No API response received (API call likely failed)."
     else:
@@ -310,8 +312,7 @@ def parse_api_response(response):
                             result_json = json.loads(arguments_str)
                             if "result" in result_json and "explanation" in result_json:
                                 result_status = result_json.get("result", "fail")
-                                # <<< Updated default for failed_component >>>
-                                failed_component = result_json.get("failed_component", "action" if result_status == "fail" else "none") # Default to action if unspecified fail
+                                failed_component = result_json.get("failed_component", "action" if result_status == "fail" else "none")
                                 explanation = result_json.get("explanation", "No explanation.")
                                 return {"result": result_status, "failed_component": failed_component, "explanation": explanation}
                             else: explanation = f"Parsed JSON missing required fields ('result','explanation'). Parsed: {result_json}"
@@ -319,7 +320,7 @@ def parse_api_response(response):
                 elif message.content: explanation = f"API returned content instead of function call: {message.content}"; failed_component = "api_response_format"
                 else: explanation = "API response lacked function call or content."; failed_component = "api_response_format"
         except (AttributeError, IndexError, KeyError, TypeError) as e: explanation = f"Error accessing API response structure: {e}. Response: {response}"; failed_component = "api_response_parsing"
-        if result_status == 'fail': print(f"Warning: API Response issue: {explanation}") # Log issues if parsing fails
+        if result_status == 'fail': print(f"Warning: API Response issue: {explanation}")
     return {"result": result_status, "failed_component": failed_component, "explanation": explanation}
 
 
@@ -332,31 +333,29 @@ def run_test(driver, test_def):
     test_name = test_def.get("name", "Unnamed Test")
     safe_test_name = "".join(c if c.isalnum() or c in ('_','-') else '_' for c in test_name).rstrip('_')
     prompt = test_def.get("prompt", "")
-    extra_wait_s = test_def.get("extra_wait_s") # Initial wait after load
+    extra_wait_s = test_def.get("extra_wait_s")
     enabled = test_def.get("enabled", True)
     url_from_yaml = test_def.get("url")
     compare_to_production = test_def.get("compare_to_production", False)
     check_types = test_def.get("check_types", [])
     ticket = test_def.get("ticket", "")
-    # <<< Get actions definition >>>
-    actions_to_perform = test_def.get("actions_before_capture", []) # Expects a list
+    actions_to_perform = test_def.get("actions_before_capture", [])
 
     # --- Pre-checks ---
-    # ... (Checks for enabled and url remain the same) ...
     if not enabled:
+        # ... (skip logic) ...
         print(f"Skipping disabled test: {test_name}")
         return {"test_name": test_name, "result": "skipped", "failed_component": "none", "explanation": "Test is disabled.", "prompt": prompt}
     if not url_from_yaml:
+        # ... (skip logic) ...
         print(f"Skipping test '{test_name}': Missing required 'url' field in YAML.")
         return {"test_name": test_name, "result": "skipped", "failed_component": "none", "explanation": "Missing 'url'.", "prompt": prompt}
-
 
     preview_url = url_from_yaml
     prod_url = None
 
     # --- URL Setup ---
     if compare_to_production:
-        # ... (Production URL setup remains the same) ...
         try:
             parsed_target = urlparse(preview_url)
             path = parsed_target.path if parsed_target.path else "/"
@@ -364,7 +363,7 @@ def run_test(driver, test_def):
             prod_url = urljoin(PROD_BASE_URL.rstrip('/') + '/', prod_path_query_fragment.lstrip('/'))
         except Exception as e:
             print(f"Warning: Could not construct production URL for comparison from {preview_url}: {e}")
-            compare_to_production = False
+            compare_to_production = False # Disable comparison if prod URL fails
             prod_url = None
 
     print(f"\n=== Running Test: {test_name} ===")
@@ -373,11 +372,14 @@ def run_test(driver, test_def):
     print(f"Effective Initial Post-Load Wait: {effective_wait}s")
     if compare_to_production and prod_url:
         print(f"Comparing against Production URL: {prod_url}")
+    else:
+        print("Running as single page test (no production comparison).")
+        compare_to_production = False # Ensure flag is false
     if actions_to_perform:
         print(f"Actions to perform before capture: {len(actions_to_perform)}")
 
     # --- Prepare for OpenAI API Call ---
-    system_content = "You are a meticulous QA automation assistant..." # Shortened for brevity
+    system_content = "You are a meticulous QA automation assistant..."
     messages = [{"role": "system", "content": system_content}]
     user_content_parts = []
     screenshots_data = []
@@ -385,10 +387,10 @@ def run_test(driver, test_def):
     if ticket: prompt_display += f"\nReference Ticket: {ticket}"
     user_content_parts.append({"type": "text", "text": prompt_display})
 
-    # --- Main Test Logic (Navigate, Wait, Action, Capture) ---
-    action_failure = False # Flag to track if actions fail
+    # --- Main Test Logic ---
+    action_failure = False
     try:
-        if compare_to_production and prod_url:
+        if compare_to_production: # This implies prod_url is valid
             user_content_parts.append({"type": "text", "text": f"\n--- Comparing Production vs Preview ---"})
             user_content_parts.append({"type": "text", "text": f"Production URL: {prod_url}"})
             user_content_parts.append({"type": "text", "text": f"Preview URL: {preview_url}"})
@@ -397,18 +399,15 @@ def run_test(driver, test_def):
             print("  -- Processing Production URL --")
             driver.get(prod_url)
             wait_for_page_conditions(driver, prod_url, extra_wait_s)
-            # <<< Perform actions on Production page >>>
             if actions_to_perform:
                  if not perform_actions(driver, actions_to_perform):
                       action_failure = True
-                      # Decide if you want to stop or just capture state after failure
                       print("    WARNING: Action failed on Production, capturing state anyway.")
-                      # return {"test_name": test_name, "result": "fail", "failed_component": "action", "explanation": f"Action(s) failed on Production URL {prod_url}", "prompt": prompt}
 
-            # Capture data (simplified calls)
-            if "text" in check_types and not action_failure: # Optionally skip capture if action failed
+            if "text" in check_types and not action_failure:
                 prod_text = capture_page_text(driver)
                 prod_text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_prod.txt")
+                # ... (save text file) ...
                 try:
                     with open(prod_text_path, "w", encoding="utf-8") as f: f.write(prod_text)
                     print(f"    Saved text artifact: {prod_text_path}")
@@ -417,8 +416,7 @@ def run_test(driver, test_def):
             elif "text" in check_types and action_failure:
                  user_content_parts.append({"type": "text", "text": "\nProduction Text: (Skipped due to action failure)"})
 
-
-            if "picture" in check_types: # Always capture picture even if action failed? Or skip? Let's capture.
+            if "picture" in check_types:
                 prod_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_prod.png")
                 prod_screenshot_bytes = capture_page_screenshot(driver, prod_screenshot_path)
                 prod_img_uri = encode_image_to_data_uri(prod_screenshot_bytes)
@@ -431,18 +429,15 @@ def run_test(driver, test_def):
             print("  -- Processing Preview URL --")
             driver.get(preview_url)
             wait_for_page_conditions(driver, preview_url, extra_wait_s)
-            # <<< Perform actions on Preview page >>>
             if actions_to_perform:
                  if not perform_actions(driver, actions_to_perform):
-                      action_failure = True
-                      # Decide if you want to stop or just capture state after failure
+                      action_failure = True # Mark failure but continue capture
                       print("    WARNING: Action failed on Preview, capturing state anyway.")
-                      # return {"test_name": test_name, "result": "fail", "failed_component": "action", "explanation": f"Action(s) failed on Preview URL {preview_url}", "prompt": prompt}
 
-            # Capture data
             if "text" in check_types and not action_failure:
                 preview_text = capture_page_text(driver)
                 preview_text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_preview.txt")
+                # ... (save text file) ...
                 try:
                      with open(preview_text_path, "w", encoding="utf-8") as f: f.write(preview_text)
                      print(f"    Saved text artifact: {preview_text_path}")
@@ -460,64 +455,60 @@ def run_test(driver, test_def):
                     user_content_parts.append({"type": "text", "text": "\nPreview State Screenshot:"})
                 else: print(f"    Warning: Failed to get Preview screenshot")
 
-        else: # Single page test (using preview_url)
+        # --- Single Page Test Logic ---
+        else:
             user_content_parts.append({"type": "text", "text": f"\n--- Single Page Test ---"})
             user_content_parts.append({"type": "text", "text": f"URL Tested: {preview_url}"})
 
-            # <<< Navigate, Wait, Perform Action >>>
             driver.get(preview_url)
             wait_for_page_conditions(driver, preview_url, extra_wait_s)
             if actions_to_perform:
                 if not perform_actions(driver, actions_to_perform):
                      action_failure = True
-                     # Decide how to proceed. Fail immediately or capture state? Let's capture.
-                     print("    WARNING: Action failed on Single Page, capturing state anyway.")
-                     # return {"test_name": test_name, "result": "fail", "failed_component": "action", "explanation": f"Action(s) failed on URL {preview_url}", "prompt": prompt}
+                     print("    WARNING: Action failed on Single Page, proceeding with capture.")
 
-            # <<< Capture Data >>>
+            # --- Capture Text ---
             if "text" in check_types and not action_failure:
                 page_text = capture_page_text(driver)
-                text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_single.txt")
+                # <<< Use _preview suffix for text artifact name too >>>
+                text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_preview.txt")
                 try:
                     with open(text_path, "w", encoding="utf-8") as f: f.write(page_text)
                     print(f"    Saved text artifact: {text_path}")
-                except Exception as e: print(f"    Warning: Could not save single text file: {e}")
-                user_content_parts.append({"type": "text", "text": f"\nPage Text:\n```\n{page_text}\n```"})
+                except Exception as e: print(f"    Warning: Could not save text file: {e}")
+                # Label text clearly in prompt
+                user_content_parts.append({"type": "text", "text": f"\nPreview Page Text:\n```\n{page_text}\n```"})
             elif "text" in check_types and action_failure:
-                 user_content_parts.append({"type": "text", "text": "\nPage Text: (Skipped due to action failure)"})
+                 user_content_parts.append({"type": "text", "text": "\nPreview Page Text: (Skipped due to action failure)"})
 
-
+            # --- Capture Screenshot (as _preview.png) --- <<< This logic is already correct from previous step >>>
             if "picture" in check_types:
-                screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_single.png")
-                screenshot_bytes = capture_page_screenshot(driver, screenshot_path)
-                img_uri = encode_image_to_data_uri(screenshot_bytes)
-                if img_uri:
-                    screenshots_data.append({"type": "image_url", "image_url": {"url": img_uri}})
-                    user_content_parts.append({"type": "text", "text": "\nPage Screenshot:"})
-                else: print(f"    Warning: Failed to get single screenshot")
+                # Save the single page screenshot using the _preview suffix
+                preview_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_preview.png")
+                preview_screenshot_bytes = capture_page_screenshot(driver, preview_screenshot_path)
+                preview_img_uri = encode_image_to_data_uri(preview_screenshot_bytes)
+                if preview_img_uri:
+                    screenshots_data.append({"type": "image_url", "image_url": {"url": preview_img_uri}})
+                    user_content_parts.append({"type": "text", "text": "\nPreview State Screenshot:"})
+                else:
+                    print(f"    Warning: Failed to get screenshot for single page test {test_name}")
 
         # --- Handle Action Failure Reporting ---
         if action_failure:
-             # Optionally add a note to the prompt or fail immediately.
-             # For now, we capture state and let the LLM decide based on the possibly incorrect state.
-             # Could also force a fail result here:
-             # return {"test_name": test_name, "result": "fail", "failed_component": "action", "explanation": f"Action failed before capture.", "prompt": prompt}
              user_content_parts.append({"type": "text", "text": "\n*** NOTE: An action failed before capture. The text/screenshot may reflect the state BEFORE the failed action completed. ***"})
 
-
     except Exception as page_err:
+        # ... (Error handling remains the same) ...
         error_msg = f"Failed during page load, action, or data capture for test '{test_name}'. URL(s): {preview_url}";
         if prod_url: error_msg += f", {prod_url}"
         error_msg += f". Error: {page_err}"; print(f"    ERROR: {error_msg}")
-        try: # Take failure screenshot
+        try:
             fail_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_FAILURE_capture.png")
-            capture_page_screenshot(driver, fail_screenshot_path) # Capture current state on error
+            capture_page_screenshot(driver, fail_screenshot_path)
         except Exception as screen_err: print(f"    Could not take failure screenshot: {screen_err}")
         return {"test_name": test_name, "result": "fail", "failed_component": "page load/action/capture", "explanation": error_msg, "prompt": prompt}
 
-
     # --- Finalize and Call OpenAI API ---
-    # ... (Check for missing screenshots remains same) ...
     if "picture" in check_types and not screenshots_data:
         print(f"Note for test '{test_name}': Proceeding without images as capture failed/returned None.")
 
@@ -531,10 +522,9 @@ def run_test(driver, test_def):
     # --- Combine and Return Final Result ---
     return {"test_name": test_name, "prompt": prompt, **result_data}
 
-
 def main(config_path):
     """Main function to load config, set up driver, run tests, and save results."""
-    # ... (Setup and teardown remain the same) ...
+    # ... (Setup, loop, driver quit, result processing remain the same) ...
     try:
         os.makedirs(ARTIFACTS_DIR, exist_ok=True)
         print(f"Artifacts will be saved to container path: {ARTIFACTS_DIR}")
@@ -568,7 +558,6 @@ def main(config_path):
 
 
     # --- Process Results ---
-    # ... (Result processing and summary remains the same) ...
     results_filename = os.path.join(ARTIFACTS_DIR, "test_results.json")
     try:
         if all_results:
@@ -577,7 +566,6 @@ def main(config_path):
         else: print("\nNo test results generated to save.")
     except Exception as e: print(f"\nError saving results to {results_filename}: {e}")
 
-    # Calculate final counts from recorded results
     final_passed = sum(1 for r in all_results if r.get("result") == "pass")
     final_failed = sum(1 for r in all_results if r.get("result") == "fail")
     final_skipped = sum(1 for r in all_results if r.get("result") == "skipped")

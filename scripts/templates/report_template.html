@@ -4,97 +4,21 @@
   <meta charset="UTF-8" />
   <title>QA Test Results</title>
   <style>
-    /* --- START OF ORIGINAL STYLES --- */
-    body {
-      font-family: Arial, sans-serif;
-      margin: 1rem 2rem;
-      background-color: #f5f5f5;
-    }
-    h1 {
-      margin-bottom: 0.5rem;
-    }
-    .summary {
-      background-color: #fff;
-      padding: 1rem;
-      border-radius: 6px;
-      margin-bottom: 1rem;
-      box-shadow: 0 0 4px rgba(0,0,0,0.1);
-    }
-
-    /* <<< Styles for Control Buttons >>> */
-    .controls {
-      margin-bottom: 1.5rem; /* Add space below buttons */
-      padding-left: 0.5rem; /* Align slightly with details */
-    }
-    .control-button {
-      padding: 6px 12px; /* Button size */
-      margin-right: 10px; /* Space between buttons */
-      font-size: 0.9em;
-      cursor: pointer;
-      background-color: #e7e7e7; /* Light grey background */
-      border: 1px solid #ccc; /* Simple border */
-      border-radius: 4px; /* Match details border radius */
-      color: #333;
-    }
-    .control-button:hover {
-      background-color: #ddd; /* Slightly darker on hover */
-    }
-    /* <<< End Control Button Styles >>> */
-
-
-    details {
-      margin-bottom: 0.8rem;
-      background-color: #fff;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      padding: 0.5rem;
-    }
-    summary {
-      font-weight: bold;
-      cursor: pointer;
-      list-style: none; /* Keep this to avoid default marker */
-      outline: none;
-    }
-    /* Color the summary background depending on test status. We'll do it inline. */
-
-    .explanation {
-      margin: 0.5rem 0;
-      padding: 0.5rem;
-      background-color: #eee;
-      border-radius: 4px;
-      word-wrap: break-word; /* Keep word-wrap for long text */
-    }
-    /* <<< Add style for prompt, mirroring explanation >>> */
-    .prompt {
-      margin: 0.5rem 0;
-      padding: 0.5rem;
-      background-color: #eee; /* Same background as explanation */
-      border-radius: 4px;
-      word-wrap: break-word; /* Keep word-wrap for long text */
-    }
-
-    .artifacts {
-      margin: 0.5rem 0;
-      padding: 0.5rem;
-    }
-    .artifact-link {
-      display: inline-block;
-      margin-right: 1rem;
-    }
-    .screenshots {
-      display: flex;
-      gap: 2rem;
-      flex-wrap: wrap;
-      margin: 1rem 0;
-    }
-    .screenshots img {
-      max-width: 200px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      cursor: pointer;
-      height: auto; /* Add height auto for aspect ratio */
-    }
-     /* --- END OF ORIGINAL STYLES (with .prompt and button styles added) --- */
+    /* --- Styles remain the same --- */
+    body { font-family: Arial, sans-serif; margin: 1rem 2rem; background-color: #f5f5f5; }
+    h1 { margin-bottom: 0.5rem; }
+    .summary { background-color: #fff; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; box-shadow: 0 0 4px rgba(0,0,0,0.1); }
+    .controls { margin-bottom: 1.5rem; padding-left: 0.5rem; }
+    .control-button { padding: 6px 12px; margin-right: 10px; font-size: 0.9em; cursor: pointer; background-color: #e7e7e7; border: 1px solid #ccc; border-radius: 4px; color: #333; }
+    .control-button:hover { background-color: #ddd; }
+    details { margin-bottom: 0.8rem; background-color: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 0.5rem; }
+    summary { font-weight: bold; cursor: pointer; list-style: none; outline: none; }
+    .explanation, .prompt { margin: 0.5rem 0; padding: 0.5rem; background-color: #eee; border-radius: 4px; word-wrap: break-word; white-space: pre-wrap; }
+    .artifacts { margin: 0.5rem 0; padding: 0.5rem; }
+    .artifact-link { display: inline-block; margin-right: 1rem; }
+    .screenshots { display: flex; gap: 2rem; flex-wrap: wrap; margin: 1rem 0; }
+    .screenshots img { max-width: 200px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; height: auto; vertical-align: top; }
+    .screenshots > div { flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -112,97 +36,80 @@
   <button id="close-all-btn" class="control-button">Close All</button>
 </div>
 {% for test in tests %}
-  {# Use original background color logic #}
   {% set bgColor = "" %}
   {% if test.status == "pass" %}
-    {% set bgColor = "lightgreen" %}
+    {% set bgColor = "#d4edda" %} {# Light green Bootstrap success style #}
   {% elif test.status == "fail" %}
-    {% set bgColor = "#f8c8c8" %}
+    {% set bgColor = "#f8d7da" %} {# Light red Bootstrap danger style #}
   {% elif test.status == "skipped" %}
-    {% set bgColor = "#dcdcdc" %}
+    {% set bgColor = "#e2e3e5" %} {# Light grey Bootstrap secondary style #}
   {% else %}
     {% set bgColor = "#fff" %}
   {% endif %}
 
-  {# Use original padding/structure for details #}
-  {# Add class="test-details" to target with JS #}
-  <details class="test-details" style="background-color: {{ bgColor }};">
-    {# Use original summary structure #}
+  <details class="test-details" style="background-color: {{ bgColor }}; border-color: {{ 'darkgrey' if test.status == 'skipped' else '#ccc' }};">
     <summary>{{ test.name }} &mdash; {{ test.status|upper if test.status else 'UNKNOWN' }}</summary>
 
-    {# Original Explanation Div #}
     <div class="explanation">
-      {# Add robustness for missing explanation #}
       <strong>Explanation:</strong> {{ test.explanation if test.explanation else 'N/A' }}
     </div>
 
-    {# <<< Display Original Prompt if available >>> #}
     {% if test.prompt %}
     <div class="prompt">
-      <strong>Original Prompt:</strong> {{ test.prompt }}
+      <strong>Original Prompt:</strong><pre style="white-space: pre-wrap; word-wrap: break-word; margin-top: 0.2em;">{{ test.prompt }}</pre>
     </div>
     {% endif %}
 
-    {# Original Artifacts Div Structure #}
     <div class="artifacts">
       <h4>Artifacts</h4>
-      {% if test.text_files %}
-        <p>Text File(s):
-          {% for txt in test.text_files %}
-            <a class="artifact-link" href="artifacts/{{txt}}" download>{{txt}}</a>
-          {% endfor %}
-        </p>
-      {% endif %}
+      {# Check if there are ANY artifacts before showing section #}
+      {% if test.text_files or test.screenshots_prod or test.screenshots_preview %}
+          {% if test.text_files %}
+            <p>Text File(s):
+              {% for txt in test.text_files %}
+                <a class="artifact-link" href="artifacts/{{txt}}" download>{{txt}}</a>
+              {% endfor %}
+            </p>
+          {% endif %}
 
-      <div class="screenshots">
-        {% if test.screenshots_prod %}
-          <div>
-            {# Use original label #}
-            <p>Production Screenshot(s):</p>
-            {% for img in test.screenshots_prod %}
-              <a href="artifacts/{{img}}" target="_blank">
-                <img src="artifacts/{{img}}" alt="Production screenshot" />
-              </a>
-            {% endfor %}
+          <div class="screenshots">
+            {% if test.screenshots_prod %}
+              <div>
+                <p>Production Screenshot(s):</p>
+                {% for img in test.screenshots_prod %}
+                  <a href="artifacts/{{img}}" target="_blank">
+                    <img src="artifacts/{{img}}" alt="Production screenshot" />
+                  </a>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if test.screenshots_preview %}
+              <div>
+                <p>Preview Screenshot(s):</p>
+                {% for img in test.screenshots_preview %}
+                  <a href="artifacts/{{img}}" target="_blank">
+                    <img src="artifacts/{{img}}" alt="Preview screenshot" />
+                  </a>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {# --- Block for screenshots_single removed --- #}
           </div>
-        {% endif %}
-        {% if test.screenshots_preview %}
-          <div>
-            <p>Preview Screenshot(s):</p>
-            {% for img in test.screenshots_preview %}
-              <a href="artifacts/{{img}}" target="_blank">
-                <img src="artifacts/{{img}}" alt="Preview screenshot" />
-              </a>
-            {% endfor %}
-          </div>
-        {% endif %}
-        {% if test.screenshots_single %}
-          <div>
-             {# Use original label #}
-            <p>Single Screenshot(s):</p>
-            {% for img in test.screenshots_single %}
-              <a href="artifacts/{{img}}" target="_blank">
-                <img src="artifacts/{{img}}" alt="Single screenshot" />
-              </a>
-            {% endfor %}
-          </div>
-        {% endif %}
-      </div>
-       {# Removed the "No artifacts" message to match original #}
+      {% else %}
+           <p>No artifacts generated for this test.</p>
+      {% endif %}
     </div>
   </details>
 {% endfor %}
 
 <script>
   function setAllDetails(openState) {
-    // Find all details elements that represent tests (added class="test-details")
     const allDetails = document.querySelectorAll('details.test-details');
     allDetails.forEach(detail => {
       detail.open = openState;
     });
   }
 
-  // Add event listeners after the DOM is loaded
   document.addEventListener('DOMContentLoaded', (event) => {
     const openAllButton = document.getElementById('open-all-btn');
     const closeAllButton = document.getElementById('close-all-btn');
