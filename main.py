@@ -1,12 +1,3 @@
-# <<< Assume all imports and helper functions above this are the same >>>
-# Imports: os, sys, time, json, base64, yaml, difflib, argparse, urllib.parse
-# OpenAI imports
-# Selenium imports and exceptions
-# Config constants: ARTIFACTS_DIR, PROD_BASE_URL, etc.
-# Functions: setup_selenium, wait_for_page_conditions, perform_actions,
-#            capture_page_text, capture_page_screenshot, encode_image_to_data_uri,
-#            load_yaml_config, call_openai_api, parse_api_response
-
 import os
 import sys
 import time
@@ -24,11 +15,12 @@ from openai import OpenAI, OpenAIError
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import (
     JavascriptException, NoSuchElementException, TimeoutException,
-    ElementClickInterceptedException, StaleElementReferenceException # Added exceptions
+    ElementClickInterceptedException, StaleElementReferenceException
 )
 
 ###############################################################################
@@ -38,10 +30,10 @@ from selenium.common.exceptions import (
 ARTIFACTS_DIR = "/app/artifacts"
 PROD_BASE_URL = "https://flybase.org"
 DEFAULT_POST_LOAD_WAIT_S = 1.5
-# <<< Wait time specifically before trying to click >>>
-CLICK_WAIT_TIMEOUT_S = 10
-# <<< Default wait after a click action >>>
+CLICK_WAIT_TIMEOUT_S = 10 # Timeout for finding/waiting for elements
 DEFAULT_WAIT_AFTER_CLICK_S = 1.0
+DEFAULT_WAIT_AFTER_INPUT_S = 0.5
+DEFAULT_WAIT_AFTER_KEY_S = 1.0
 
 
 API_KEY = os.getenv("OPENAI_API_KEY")
@@ -53,7 +45,7 @@ MODEL_NAME = "gpt-4o-mini"
 
 FUNCTION_SCHEMA = [
     # ... (Function schema remains the same) ...
-    {
+        {
         "name": "record_test_result",
         "description": (
             "Records whether the test passed or failed, and which component failed "
@@ -91,7 +83,7 @@ def setup_selenium():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     driver = webdriver.Chrome(options=options)
-    driver.set_window_size(1280, 1024)
+    driver.set_window_size(1280, 1024) # Fixed window size
 
     waf_secret = os.getenv("WAF_SECRET_HEADER")
     if waf_secret:
@@ -110,7 +102,6 @@ def wait_for_page_conditions(driver, url_loaded, extra_wait_s=None):
     WebDriverWait(driver, 25).until(lambda d: d.execute_script('return document.readyState') == 'complete')
     print(f"    Page '{url_loaded}' loaded (readyState complete).")
 
-    # 2. Handle fragment scrolling if present
     scroll_wait = 1.0
     _base, fragment = urldefrag(url_loaded)
     if fragment:
@@ -129,7 +120,6 @@ def wait_for_page_conditions(driver, url_loaded, extra_wait_s=None):
         except Exception as scroll_err:
              print(f"    Warning: Error during scrolling attempt for '#{fragment}': {scroll_err}")
 
-    # 3. Apply fixed wait (either default or override)
     wait_duration = DEFAULT_POST_LOAD_WAIT_S
     if extra_wait_s is not None:
         try:
@@ -148,27 +138,28 @@ def wait_for_page_conditions(driver, url_loaded, extra_wait_s=None):
         time.sleep(wait_duration)
 
 
+# <<< MODIFIED: Function to handle actions with automatic scrolling >>>
 def perform_actions(driver, actions):
-    """ Performs a list of actions defined in the YAML """
-    # ... (perform_actions function remains the same) ...
+    """ Performs a list of actions defined in the YAML, scrolling element into view first. """
     if not actions:
-        return True # No actions to perform
+        return True
 
     print("    Performing actions before capture...")
     for i, action_def in enumerate(actions):
         action_type = action_def.get("action")
         locate_by = action_def.get("locate_by")
         value = action_def.get("value")
-        wait_after_s = action_def.get("wait_after_s", DEFAULT_WAIT_AFTER_CLICK_S)
-        action_desc = f"Action #{i+1} ({action_type}: {locate_by}='{value}')"
+        default_wait = DEFAULT_WAIT_AFTER_CLICK_S
+        if action_type == "input_text": default_wait = DEFAULT_WAIT_AFTER_INPUT_S
+        if action_type == "press_key": default_wait = DEFAULT_WAIT_AFTER_KEY_S
+        wait_after_s = action_def.get("wait_after_s", default_wait)
+        action_desc = f"Action #{i+1} ({action_type}"
+        if locate_by: action_desc += f": {locate_by}='{value}'"
+        action_desc += ")"
 
-        if action_type == "click":
-            if not locate_by or value is None: # Check value is not None explicitly
-                print(f"    ERROR: Skipping invalid click action ({action_desc}): Missing 'locate_by' or 'value'.")
-                return False # Indicate action failure
-
-            # --- Map YAML locate_by string to Selenium By object ---
-            locator_strategy = None
+        # --- Map locator strategy ---
+        locator_strategy = None
+        if locate_by:
             if locate_by == "css_selector": locator_strategy = By.CSS_SELECTOR
             elif locate_by == "xpath": locator_strategy = By.XPATH
             elif locate_by == "id": locator_strategy = By.ID
@@ -178,9 +169,40 @@ def perform_actions(driver, actions):
             elif locate_by == "tag_name": locator_strategy = By.TAG_NAME
             else:
                 print(f"    ERROR: Invalid 'locate_by' value ('{locate_by}') for {action_desc}.")
-                return False # Indicate action failure
+                return False
+        elif action_type in ["click", "input_text", "press_key"]: # Check if locator is needed
+             print(f"    ERROR: Missing 'locate_by' or 'value' for required action '{action_type}' ({action_desc}).")
+             return False
 
+
+        # --- Preliminary Find and Scroll --- <<< NEW BLOCK START >>>
+        element_to_interact = None
+        if locator_strategy: # Only scroll if we have a locator
             try:
+                print(f"      Ensuring element is present for scrolling: {locate_by}='{value}'")
+                # Wait briefly for presence first
+                preliminary_element = WebDriverWait(driver, CLICK_WAIT_TIMEOUT_S / 2).until(
+                     EC.presence_of_element_located((locator_strategy, value))
+                )
+                print(f"      Scrolling element into view (center): {locate_by}='{value}'")
+                # Scroll element to center of view, nearest scrollable ancestor
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", preliminary_element)
+                time.sleep(0.3) # Small pause after scroll to let things settle
+                element_to_interact = preliminary_element # Store for later use if needed, though waits below re-find
+            except TimeoutException:
+                print(f"    ERROR: Timed out finding element *before* interaction/scroll for {action_desc}.")
+                return False
+            except Exception as scroll_err:
+                print(f"    ERROR: Could not find or scroll to element for {action_desc}: {scroll_err}")
+                return False
+        # <<< NEW BLOCK END >>>
+
+
+        # --- Action Execution (with waits for interactability) ---
+        try:
+            element = None # Re-find or wait for state change after scroll
+            if action_type == "click":
+                # Now wait for clickable *after* scrolling
                 print(f"      Waiting for element to be clickable: {locate_by}='{value}' (Timeout: {CLICK_WAIT_TIMEOUT_S}s)")
                 element = WebDriverWait(driver, CLICK_WAIT_TIMEOUT_S).until(
                     EC.element_to_be_clickable((locator_strategy, value))
@@ -188,42 +210,79 @@ def perform_actions(driver, actions):
                 print(f"      Clicking element: {locate_by}='{value}'")
                 element.click()
 
-                # Wait after click
-                if wait_after_s > 0:
-                    print(f"      Waiting {wait_after_s}s after click...")
-                    time.sleep(wait_after_s)
-
-            except TimeoutException:
-                print(f"    ERROR: Timed out waiting for element to be clickable for {action_desc}.")
-                return False # Indicate action failure
-            except (NoSuchElementException, StaleElementReferenceException) as e:
-                print(f"    ERROR: Element not found or stale for {action_desc}: {e}")
-                return False
-            except ElementClickInterceptedException:
-                print(f"    ERROR: Element click intercepted for {action_desc}. Trying JavaScript click.")
-                # Fallback: Try clicking with JavaScript
-                try:
-                    element = driver.find_element(locator_strategy, value) # Re-find element just in case
-                    driver.execute_script("arguments[0].click();", element)
-                    print("      JavaScript click executed.")
-                    if wait_after_s > 0:
-                        print(f"      Waiting {wait_after_s}s after JS click...")
-                        time.sleep(wait_after_s)
-                except Exception as js_e:
-                    print(f"    ERROR: JavaScript click also failed for {action_desc}: {js_e}")
+            elif action_type == "input_text":
+                text_to_input = action_def.get("text")
+                if text_to_input is None: # Check if text value exists
+                    print(f"    ERROR: Missing 'text' field for input_text action ({action_desc}).")
                     return False
-            except Exception as e:
-                print(f"    ERROR: Unexpected error during {action_desc}: {e}")
-                return False
-        else:
-            print(f"    WARNING: Unsupported action type '{action_type}' in {action_desc}. Skipping.")
+                # Wait for visibility *after* scrolling
+                print(f"      Waiting for element visibility: {locate_by}='{value}' (Timeout: {CLICK_WAIT_TIMEOUT_S}s)")
+                element = WebDriverWait(driver, CLICK_WAIT_TIMEOUT_S).until(
+                    EC.visibility_of_element_located((locator_strategy, value))
+                )
+                print(f"      Inputting text into: {locate_by}='{value}'")
+                # element.clear() # Optional
+                element.send_keys(text_to_input)
+
+            elif action_type == "press_key":
+                key_name = action_def.get("key")
+                if not key_name:
+                     print(f"    ERROR: Missing 'key' field for press_key action ({action_desc}).")
+                     return False
+
+                key_to_press = None
+                if key_name.upper() == "ENTER": key_to_press = Keys.ENTER
+                elif key_name.upper() == "TAB": key_to_press = Keys.TAB
+                else:
+                    print(f"    ERROR: Unsupported key name '{key_name}' for {action_desc}.")
+                    return False
+
+                # Wait for visibility *after* scrolling
+                print(f"      Waiting for element visibility: {locate_by}='{value}' (Timeout: {CLICK_WAIT_TIMEOUT_S}s)")
+                element = WebDriverWait(driver, CLICK_WAIT_TIMEOUT_S).until(
+                    EC.visibility_of_element_located((locator_strategy, value))
+                )
+                print(f"      Pressing key '{key_name}' in: {locate_by}='{value}'")
+                element.send_keys(key_to_press)
+
+            else:
+                print(f"    WARNING: Unsupported action type '{action_type}' in {action_desc}. Skipping.")
+                continue # Skip wait for unsupported actions
+
+            # Wait after successful action if specified
+            if wait_after_s > 0:
+                print(f"      Waiting {wait_after_s}s after {action_type}...")
+                time.sleep(wait_after_s)
+
+        # --- Error Handling ---
+        except TimeoutException:
+            print(f"    ERROR: Timed out waiting for element state (clickable/visible) for {action_desc}.")
+            return False
+        except (NoSuchElementException, StaleElementReferenceException) as e:
+            print(f"    ERROR: Element not found or stale during interaction for {action_desc}: {e}")
+            return False
+        except ElementClickInterceptedException:
+             print(f"    ERROR: Element click intercepted for {action_desc}. Trying JavaScript click.")
+             try:
+                 element = driver.find_element(locator_strategy, value) # Re-find just in case
+                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", element) # Ensure scroll again
+                 time.sleep(0.2)
+                 driver.execute_script("arguments[0].click();", element)
+                 print("      JavaScript click executed.")
+                 if wait_after_s > 0: time.sleep(wait_after_s)
+             except Exception as js_e:
+                 print(f"    ERROR: JavaScript click also failed for {action_desc}: {js_e}")
+                 return False
+        except Exception as e:
+            print(f"    ERROR: Unexpected error during {action_desc}: {e}")
+            return False
 
     print("    Finished performing actions.")
     return True
 
+# <<< Other functions (capture_page_text, capture_page_screenshot, etc.) remain the same >>>
 def capture_page_text(driver):
-    """Fetch the entire visible text from the CURRENT page body."""
-    # ... (capture_page_text remains the same) ...
+    # ... (same) ...
     try:
         body_element = driver.find_element(By.XPATH, "//body")
         return body_element.text
@@ -232,10 +291,8 @@ def capture_page_text(driver):
         return f"Error capturing text: {e}"
 
 def capture_page_screenshot(driver, screenshot_filename_with_path):
-    """Capture screenshot of the CURRENT page state."""
-    # ... (capture_page_screenshot remains the same) ...
+    # ... (same) ...
     try:
-        # Ensure directory exists
         os.makedirs(os.path.dirname(screenshot_filename_with_path), exist_ok=True)
         driver.save_screenshot(screenshot_filename_with_path)
         print(f"    Saved screenshot artifact: {screenshot_filename_with_path}")
@@ -245,17 +302,14 @@ def capture_page_screenshot(driver, screenshot_filename_with_path):
         print(f"    Error capturing or reading screenshot {screenshot_filename_with_path} (current state): {e}")
         return None
 
-
 def encode_image_to_data_uri(image_bytes, image_format="png"):
-    """Encode image bytes in base64 with data URI format."""
-    # ... (Encoding remains the same) ...
+    # ... (same) ...
     if image_bytes is None: return ""
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
     return f"data:image/{image_format};base64,{image_b64}"
 
 def load_yaml_config(config_path):
-    """Load tests from a YAML configuration file."""
-    # ... (Loading remains the same) ...
+    # ... (same) ...
     try:
         with open(config_path, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file)
@@ -278,8 +332,7 @@ def load_yaml_config(config_path):
          sys.exit(1)
 
 def call_openai_api(messages):
-    """Call OpenAI's ChatCompletion API using function calling (v1.x API)."""
-    # ... (API call remains the same) ...
+    # ... (same) ...
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME, messages=messages, functions=FUNCTION_SCHEMA,
@@ -294,8 +347,7 @@ def call_openai_api(messages):
         return None
 
 def parse_api_response(response):
-    """Parse the response from OpenAI - returns a dict with result, failed_component, explanation."""
-    # ... (Parsing remains the same) ...
+    # ... (same) ...
     result_status = "fail"; failed_component = "unknown"; explanation = "Could not parse API response or API call failed."
     if not response: explanation = "No API response received (API call likely failed)."
     else:
@@ -330,6 +382,7 @@ def run_test(driver, test_def):
     Returns a dict with test name, prompt, result, failed_component, and explanation.
     """
     # --- Test Definition Extraction ---
+    # ... (remains the same) ...
     test_name = test_def.get("name", "Unnamed Test")
     safe_test_name = "".join(c if c.isalnum() or c in ('_','-') else '_' for c in test_name).rstrip('_')
     prompt = test_def.get("prompt", "")
@@ -342,12 +395,11 @@ def run_test(driver, test_def):
     actions_to_perform = test_def.get("actions_before_capture", [])
 
     # --- Pre-checks ---
+    # ... (remains the same) ...
     if not enabled:
-        # ... (skip logic) ...
         print(f"Skipping disabled test: {test_name}")
         return {"test_name": test_name, "result": "skipped", "failed_component": "none", "explanation": "Test is disabled.", "prompt": prompt}
     if not url_from_yaml:
-        # ... (skip logic) ...
         print(f"Skipping test '{test_name}': Missing required 'url' field in YAML.")
         return {"test_name": test_name, "result": "skipped", "failed_component": "none", "explanation": "Missing 'url'.", "prompt": prompt}
 
@@ -355,6 +407,7 @@ def run_test(driver, test_def):
     prod_url = None
 
     # --- URL Setup ---
+    # ... (remains the same) ...
     if compare_to_production:
         try:
             parsed_target = urlparse(preview_url)
@@ -363,7 +416,7 @@ def run_test(driver, test_def):
             prod_url = urljoin(PROD_BASE_URL.rstrip('/') + '/', prod_path_query_fragment.lstrip('/'))
         except Exception as e:
             print(f"Warning: Could not construct production URL for comparison from {preview_url}: {e}")
-            compare_to_production = False # Disable comparison if prod URL fails
+            compare_to_production = False
             prod_url = None
 
     print(f"\n=== Running Test: {test_name} ===")
@@ -374,11 +427,12 @@ def run_test(driver, test_def):
         print(f"Comparing against Production URL: {prod_url}")
     else:
         print("Running as single page test (no production comparison).")
-        compare_to_production = False # Ensure flag is false
+        compare_to_production = False
     if actions_to_perform:
         print(f"Actions to perform before capture: {len(actions_to_perform)}")
 
     # --- Prepare for OpenAI API Call ---
+    # ... (remains the same) ...
     system_content = "You are a meticulous QA automation assistant..."
     messages = [{"role": "system", "content": system_content}]
     user_content_parts = []
@@ -388,6 +442,7 @@ def run_test(driver, test_def):
     user_content_parts.append({"type": "text", "text": prompt_display})
 
     # --- Main Test Logic ---
+    # ... (This logic calling perform_actions and capture functions remains the same as the previous correct version) ...
     action_failure = False
     try:
         if compare_to_production: # This implies prod_url is valid
@@ -407,7 +462,6 @@ def run_test(driver, test_def):
             if "text" in check_types and not action_failure:
                 prod_text = capture_page_text(driver)
                 prod_text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_prod.txt")
-                # ... (save text file) ...
                 try:
                     with open(prod_text_path, "w", encoding="utf-8") as f: f.write(prod_text)
                     print(f"    Saved text artifact: {prod_text_path}")
@@ -437,7 +491,6 @@ def run_test(driver, test_def):
             if "text" in check_types and not action_failure:
                 preview_text = capture_page_text(driver)
                 preview_text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_preview.txt")
-                # ... (save text file) ...
                 try:
                      with open(preview_text_path, "w", encoding="utf-8") as f: f.write(preview_text)
                      print(f"    Saved text artifact: {preview_text_path}")
@@ -456,7 +509,7 @@ def run_test(driver, test_def):
                 else: print(f"    Warning: Failed to get Preview screenshot")
 
         # --- Single Page Test Logic ---
-        else:
+        else: # Only runs if compare_to_production is False
             user_content_parts.append({"type": "text", "text": f"\n--- Single Page Test ---"})
             user_content_parts.append({"type": "text", "text": f"URL Tested: {preview_url}"})
 
@@ -470,26 +523,23 @@ def run_test(driver, test_def):
             # --- Capture Text ---
             if "text" in check_types and not action_failure:
                 page_text = capture_page_text(driver)
-                # <<< Use _preview suffix for text artifact name too >>>
-                text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_preview.txt")
+                text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_preview.txt") # Use preview suffix
                 try:
                     with open(text_path, "w", encoding="utf-8") as f: f.write(page_text)
                     print(f"    Saved text artifact: {text_path}")
                 except Exception as e: print(f"    Warning: Could not save text file: {e}")
-                # Label text clearly in prompt
                 user_content_parts.append({"type": "text", "text": f"\nPreview Page Text:\n```\n{page_text}\n```"})
             elif "text" in check_types and action_failure:
                  user_content_parts.append({"type": "text", "text": "\nPreview Page Text: (Skipped due to action failure)"})
 
-            # --- Capture Screenshot (as _preview.png) --- <<< This logic is already correct from previous step >>>
+            # --- Capture Screenshot (as _preview.png) ---
             if "picture" in check_types:
-                # Save the single page screenshot using the _preview suffix
-                preview_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_preview.png")
+                preview_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_preview.png") # Use preview suffix
                 preview_screenshot_bytes = capture_page_screenshot(driver, preview_screenshot_path)
                 preview_img_uri = encode_image_to_data_uri(preview_screenshot_bytes)
                 if preview_img_uri:
                     screenshots_data.append({"type": "image_url", "image_url": {"url": preview_img_uri}})
-                    user_content_parts.append({"type": "text", "text": "\nPreview State Screenshot:"})
+                    user_content_parts.append({"type": "text", "text": "\nPreview State Screenshot:"}) # Consistent label
                 else:
                     print(f"    Warning: Failed to get screenshot for single page test {test_name}")
 
@@ -509,6 +559,7 @@ def run_test(driver, test_def):
         return {"test_name": test_name, "result": "fail", "failed_component": "page load/action/capture", "explanation": error_msg, "prompt": prompt}
 
     # --- Finalize and Call OpenAI API ---
+    # ... (remains the same) ...
     if "picture" in check_types and not screenshots_data:
         print(f"Note for test '{test_name}': Proceeding without images as capture failed/returned None.")
 
@@ -519,11 +570,11 @@ def run_test(driver, test_def):
     response = call_openai_api(messages)
     result_data = parse_api_response(response)
 
-    # --- Combine and Return Final Result ---
     return {"test_name": test_name, "prompt": prompt, **result_data}
 
+
+# <<< main function remains unchanged >>>
 def main(config_path):
-    """Main function to load config, set up driver, run tests, and save results."""
     # ... (Setup, loop, driver quit, result processing remain the same) ...
     try:
         os.makedirs(ARTIFACTS_DIR, exist_ok=True)
