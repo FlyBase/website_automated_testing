@@ -39,7 +39,7 @@ tests:
     prompt: |
       Verify the Signaling Pathways (FlyBase) section is populated with data. Ref WEB-2346.
 
-  - name: "Ribbons Data Not Regenerated"
+  - name: "GO Ribbons Data Not Regenerated"
     enabled: true
     url: "https://preview.flybase.org/reports/FBgn0289744#function"
     check_types:
@@ -47,6 +47,33 @@ tests:
     compare_to_production: true
     prompt: |
       Some of the small square boxes above the words molecular function, biological process, and cellular component, should have shades of blue in them.
+
+  - name: "FCA Expression Ribbon Data Not Regenerated"
+    enabled: true
+    url: "https://preview.flybase.org/reports/FBgn0289744#expression"
+    check_types:
+      - picture
+    compare_to_production: true
+    prompt: |
+      Some of the small square boxes above the words "adult cell types - Fly Cell Atlas scRNA-seq", should have shades of blue or maroon in them.
+
+  - name: "FlyBase Anatomy Expression Ribbon Data Not Regenerated"
+    enabled: true
+    url: "https://preview.flybase.org/reports/FBgn0289744#expression"
+    check_types:
+      - picture
+    compare_to_production: true
+    prompt: |
+      Some of the small square boxes above the words "anatomy - manually curated", should have shades of teal in them.
+
+  - name: "modENCODE RNA-seq Expression Ribbon Data Not Regenerated"
+    enabled: true
+    url: "https://preview.flybase.org/reports/FBgn0289744#expression"
+    check_types:
+      - picture
+    compare_to_production: true
+    prompt: |
+      Some of the small square boxes above the words "stages - modENCODE RNA-seq", should have shades of yellow, orange, or maroon in them.
 
   - name: "FBco Objects Missing in Hitlists"
     enabled: false
