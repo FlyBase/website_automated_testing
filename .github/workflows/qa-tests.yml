@@ -1,21 +1,22 @@
 name: QA Tests and Publish
 
 on:
-  # You can push or do manual triggers:
   push:
   workflow_dispatch:
+
+permissions:                  
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    environment: main
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
-
       - name: Build Docker image
         run: docker build -t my-qa-image .
-
       - name: Run QA tests in Docker
         run: |
           mkdir -p artifacts
@@ -24,22 +25,17 @@ jobs:
             -e WAF_SECRET_HEADER="${{ secrets.AWS_WAF_SECRET }}" \
             -v ${{ github.workspace }}/artifacts:/app/artifacts \
             my-qa-image
-
       - name: Generate HTML report
         run: |
           pip install jinja2
           python scripts/generate_html_report.py
-
-      # Configure Pages (optional but recommended)
       - name: Configure Pages
         uses: actions/configure-pages@v3
-
-      # Upload site as an artifact
       - name: Upload artifact for Pages
         uses: actions/upload-artifact@v4
         with:
           name: pages
-          path: docs   # The folder where your final index.html is
+          path: docs
 
   deploy:
     needs: build-and-test
