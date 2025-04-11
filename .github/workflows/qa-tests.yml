@@ -1,27 +1,29 @@
 name: QA Tests and Publish
 
 on:
+  push:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+  pages: write        # Needed for deploy-pages in the target environment
+  id-token: write     # Needed for deploy-pages OIDC in the target environment
   actions: read
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    environment: main
+    environment: main # Keep this here for accessing environment secrets
     steps:
       - name: Check out repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Build Docker image
         run: docker build -t my-qa-image .
 
       - name: Run QA tests in Docker
         env:
+          # These secrets will be available because of 'environment: main' above
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           WAF_SECRET_HEADER: ${{ secrets.AWS_WAF_SECRET }}
         run: |
@@ -35,30 +37,42 @@ jobs:
       - name: Install Jinja2
         run: pip install jinja2
 
-      - name: Make docs folder
+      - name: Make docs folder structure
         run: mkdir -p docs/artifacts
 
       - name: Copy test artifacts into docs
-        run: cp -R artifacts docs/artifacts
+        # Correctly copy CONTENTS of artifacts into docs/artifacts
+        run: cp -R artifacts/* docs/artifacts/
 
       - name: Generate HTML report
         run: python scripts/generate_html_report.py
 
       - name: Configure Pages
-        uses: actions/configure-pages@v3
+        # This action prepares the environment for Pages, but doesn't deploy
+        uses: actions/configure-pages@v5
 
       - name: Upload artifact for Pages
-        uses: actions/upload-artifact@v4
+        # Use the dedicated action for Pages artifacts
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: pages
+          # Path to the directory containing index.html and artifacts/ sub-dir
           path: docs
 
   deploy:
     needs: build-and-test
     runs-on: ubuntu-latest
-    environment: main
+    # Specify the deployment environment here ALSO.
+    # This ensures deploy-pages runs in the context of 'main'
+    # and respects any protection rules associated with it.
+    environment:
+      name: main
+      url: ${{ steps.deployment.outputs.page_url }} # Output the deployment URL
+    permissions:
+      pages: write      # Specific permission needed for deploy-pages
+      id-token: write   # Specific permission needed for deploy-pages
     steps:
       - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v1
-        with:
-          artifact_name: pages
+        id: deployment # Add an ID to reference outputs like the URL
+        uses: actions/deploy-pages@v4
+        # No 'artifact_name' needed; it uses the artifact from upload-pages-artifact
+        # It will deploy to the Pages site configured for the 'main' environment.
