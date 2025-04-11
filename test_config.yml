@@ -13,11 +13,11 @@ tests:
 
   - name: "GAL4 QS Search Interaction and Result Load"
     enabled: true
-    url: "https://flybase.org/
+    url: "https://flybase.org/"
     check_types:
       - text # Check for text in the results table
       - picture # Visually check results table
-    compare_to_production: true # This is a specific interaction test
+    compare_to_production: true
     actions_before_capture:
       - action: click
         locate_by: link_text # Find the tab by its visible text
@@ -126,23 +126,23 @@ tests:
     compare_to_production: true
     prompt: |
       Verify that FBco identifiers appear as objects in search result hitlists. Ref WEB-2346.
-  
+
   - name: "Variant Molecular Consequences Missing"
     enabled: true
-    url: "https://preview.flybase.org/reports/FBgn0289744" # Placeholder - Needs specific Allele/Gene report URL
+    url: "https://preview.flybase.org/reports/FBgn0289744"
     ticket: Ref WEB-2346
     check_types:
       - picture
     compare_to_production: true
     extra_wait_s: 5
     actions_before_capture:
-  - action: click
-    locate_by: css_selector
-    value: "a.js-trigger-open[data-toggle-target='variants_div_sub'][href='#variants_div']"
-    wait_after_s: 5
+      - action: click
+        locate_by: css_selector
+        value: "a.js-trigger-open[data-toggle-target='variants_div_sub'][href='#variants_div']"
+        wait_after_s: 5
     prompt: |
-      Check for data in the Variant Effect Predictor (VEP) Analysis of FlyBase variant data table. It should have Variants, Affected Genes, Related Alleles, and Affect Transcripts data. 
-  
+      Check for data in the Variant Effect Predictor (VEP) Analysis of FlyBase variant data table. It should have Variants, Affected Genes, Related Alleles, and Affect Transcripts data.
+
   - name: "New HDMs Not Searchable by Disease"
     enabled: false
     url: "https://flybase.org/" # Placeholder - Needs Disease QS tab URL
