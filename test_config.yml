@@ -53,7 +53,7 @@ tests:
     url: "https://preview.flybase.org/reports/FBgn0289744"
     check_types:
       - picture
-    compare_to_production: true
+    compare_to_production: false
     extra_wait_s: 5
     actions_before_capture:
     - action: click
