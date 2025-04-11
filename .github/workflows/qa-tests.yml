@@ -35,6 +35,9 @@ jobs:
       - name: Install Jinja2
         run: pip install jinja2
 
+      - name: Make docs folder
+        run: mkdir -p docs/artifacts
+
       - name: Copy test artifacts into docs
         run: cp -R artifacts docs/artifacts
 
