@@ -109,14 +109,19 @@ tests:
       Verify that FBco identifiers appear as objects in search result hitlists. Ref WEB-2346.
   
   - name: "Variant Molecular Consequences Missing"
-    enabled: false
-    url: "https://flybase.org/" # Placeholder - Needs specific Allele/Gene report URL
+    enabled: true
+    url: "https://preview.flybase.org/reports/FBgn0289744" # Placeholder - Needs specific Allele/Gene report URL
+    ticket: Ref WEB-2346
     check_types:
-      - text
       - picture
     compare_to_production: true
+    actions_before_capture:
+  - action: click
+    locate_by: css_selector
+    value: "a[href='#variants_div']"
+    wait_after_s: 5
     prompt: |
-      Check allele and gene reports for missing Variant Molecular Consequences data. Ref WEB-2346.
+      Check for data in the Variant Effect Predictor (VEP) Analysis of FlyBase variant data table. It should have Variants, Affected Genes, Related Alleles, and Affect Transcripts data. 
   
   - name: "New HDMs Not Searchable by Disease"
     enabled: false
