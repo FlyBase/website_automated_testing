@@ -6,7 +6,8 @@ import base64
 import yaml
 import difflib
 import argparse
-from urllib.parse import urlparse
+# Make sure urlparse is imported
+from urllib.parse import urlparse, urldefrag
 
 # Updated OpenAI imports
 from openai import OpenAI, OpenAIError
@@ -17,6 +18,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+# Import exceptions for safer JS execution
+from selenium.common.exceptions import JavascriptException, NoSuchElementException
 
 ###############################################################################
 # CONFIGURATION AND HELPERS
@@ -97,29 +100,87 @@ def get_page_text(driver, url):
     try:
         print(f"    Getting text from: {url}")
         driver.get(url)
-        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        # Increased wait slightly for potentially complex pages
+        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
+        # --- Add check for fragment and scroll if necessary ---
+        _base, fragment = urldefrag(url)
+        if fragment:
+            try:
+                print(f"    Fragment '#{fragment}' detected. Attempting to scroll into view.")
+                # Find element by ID matching the fragment
+                target_element = driver.find_element(By.ID, fragment)
+                # Use JavaScript to scroll the element into view
+                driver.execute_script("arguments[0].scrollIntoView(true);", target_element)
+                time.sleep(0.75) # Short pause for scroll animation/rendering
+                print(f"    Scrolled to element with ID '{fragment}'.")
+            except NoSuchElementException:
+                print(f"    Warning: Could not find element with ID '{fragment}' to scroll to.")
+            except JavascriptException as js_err:
+                print(f"    Warning: JavaScript error while scrolling to '#{fragment}': {js_err}")
+            except Exception as scroll_err: # Catch other potential errors
+                 print(f"    Warning: Error during scrolling to '#{fragment}': {scroll_err}")
+        # --- End fragment check ---
+
+        # Re-find body element after potential scroll
         body_element = driver.find_element(By.XPATH, "//body")
         return body_element.text
     except Exception as e:
         print(f"    Error extracting text from {url}: {e}")
         return f"Error extracting text: {e}"
 
+
 def get_page_screenshot(driver, url, screenshot_filename_with_path):
-    """Capture a screenshot of the given URL and return the image bytes."""
+    """
+    Capture a screenshot of the given URL. If the URL has a fragment (#anchor),
+    attempts to scroll to that anchor before taking the screenshot.
+    Returns the image bytes.
+    """
     try:
         print(f"    Getting screenshot from: {url}")
         if url:
             driver.get(url)
-            WebDriverWait(driver, 15).until(lambda d: d.execute_script('return document.readyState') == 'complete')
-            time.sleep(1)
+            # Wait for basic page load state
+            WebDriverWait(driver, 20).until(lambda d: d.execute_script('return document.readyState') == 'complete') # Increased wait
+            print(f"    Page '{url}' loaded (readyState complete).")
+
+            # --- Add check for fragment and scroll if necessary ---
+            _base, fragment = urldefrag(url) # Use urldefrag to safely get fragment
+            if fragment:
+                try:
+                    print(f"    Fragment '#{fragment}' detected. Attempting to scroll into view.")
+                    # Find element by ID matching the fragment
+                    # Wait briefly for the element to potentially exist after load
+                    target_element = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.ID, fragment))
+                    )
+                    # Use JavaScript to scroll the element into view
+                    driver.execute_script("arguments[0].scrollIntoView(true);", target_element)
+                    print(f"    Executed scrollIntoView for ID '{fragment}'.")
+                    # Wait a bit longer after scroll for rendering/animations
+                    time.sleep(1.5) # Increased sleep after scroll command
+                except NoSuchElementException:
+                     # It's possible the fragment doesn't correspond to an ID, or the element isn't found
+                     print(f"    Warning: Could not find element with ID '{fragment}' to scroll to.")
+                except JavascriptException as js_err:
+                     print(f"    Warning: JavaScript error while scrolling to '#{fragment}': {js_err}")
+                except Exception as scroll_err: # Catch other potential errors like timeout waiting for element
+                     print(f"    Warning: Error during scrolling attempt for '#{fragment}': {scroll_err}")
+            else:
+                 # If no fragment, still wait a standard amount
+                 time.sleep(1)
+            # --- End fragment check ---
+
+        # Proceed to take screenshot after load and potential scroll attempt
         os.makedirs(os.path.dirname(screenshot_filename_with_path), exist_ok=True)
         driver.save_screenshot(screenshot_filename_with_path)
         print(f"    Saved screenshot artifact: {screenshot_filename_with_path}")
         with open(screenshot_filename_with_path, "rb") as img_file:
             return img_file.read()
     except Exception as e:
-        print(f"    Error capturing or reading screenshot {screenshot_filename_with_path}: {e}")
+        print(f"    Error capturing or reading screenshot {screenshot_filename_with_path} for URL {url}: {e}")
         return None
+
 
 def encode_image_to_data_uri(image_bytes, image_format="png"):
     """Encode image bytes in base64 with data URI format."""
@@ -248,16 +309,13 @@ def run_test(driver, test_def):
 
     if compare_to_production:
         try:
+            # Construct prod URL preserving path, query, and fragment from target
             parsed_target = urlparse(target_url)
-            prod_path = parsed_target.path if parsed_target.path else "/"
-            prod_url = f"{PROD_BASE_URL}{prod_path}"
-            if parsed_target.query:
-                prod_url += f"?{parsed_target.query}"
-            if parsed_target.fragment:
-                prod_url += f"#{parsed_target.fragment}"
+            prod_path_query_fragment = urlunparse(('', '', parsed_target.path, parsed_target.params, parsed_target.query, parsed_target.fragment))
+            prod_url = urljoin(PROD_BASE_URL, prod_path_query_fragment) # Handles relative paths correctly
         except Exception as e:
             print(f"Warning: Could not construct production URL for comparison from {target_url}: {e}")
-            compare_to_production = False
+            compare_to_production = False # Disable comparison if prod URL fails
             prod_url = None
 
     print(f"\n=== Running Test: {test_name} ===")
@@ -286,6 +344,7 @@ def run_test(driver, test_def):
             user_content_parts.append({"type": "text", "text": f"Production URL: {prod_url}"})
             user_content_parts.append({"type": "text", "text": f"Target URL: {target_url}"})
 
+            # Get text *after* potential scrolling (handled in get_page_text)
             prod_text = get_page_text(driver, prod_url) if "text" in check_types else "Text check not requested."
             target_text = get_page_text(driver, target_url) if "text" in check_types else "Text check not requested."
 
@@ -304,6 +363,7 @@ def run_test(driver, test_def):
             if "picture" in check_types:
                 prod_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_prod.png")
                 target_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_target.png")
+                # Get screenshots *after* potential scrolling (handled in get_page_screenshot)
                 prod_screenshot_bytes = get_page_screenshot(driver, prod_url, prod_screenshot_path)
                 target_screenshot_bytes = get_page_screenshot(driver, target_url, target_screenshot_path)
                 prod_img_uri = encode_image_to_data_uri(prod_screenshot_bytes)
@@ -319,6 +379,7 @@ def run_test(driver, test_def):
             user_content_parts.append({"type": "text", "text": f"URL Tested: {target_url}"})
 
             if "text" in check_types:
+                 # Get text *after* potential scrolling (handled in get_page_text)
                 page_text = get_page_text(driver, target_url)
                 text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_single.txt")
                 try:
@@ -329,6 +390,7 @@ def run_test(driver, test_def):
 
             if "picture" in check_types:
                 screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_single.png")
+                 # Get screenshot *after* potential scrolling (handled in get_page_screenshot)
                 screenshot_bytes = get_page_screenshot(driver, target_url, screenshot_path)
                 img_uri = encode_image_to_data_uri(screenshot_bytes)
                 if img_uri:
@@ -343,7 +405,8 @@ def run_test(driver, test_def):
         print(f"    ERROR: {error_msg}")
         try: # Attempt failure screenshot
             fail_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_FAILURE_capture.png")
-            get_page_screenshot(driver, None, fail_screenshot_path) # Pass None for URL to screenshot current state
+            # Try taking screenshot without navigating again
+            get_page_screenshot(driver, None, fail_screenshot_path)
         except Exception as screen_err: print(f"    Could not take failure screenshot: {screen_err}")
         return {
             "test_name": test_name,
@@ -461,4 +524,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run QA tests using OpenAI's multimodal API and YAML config.")
     parser.add_argument("--config", default="test_config.yml", help="Path to the YAML test configuration file.")
     args = parser.parse_args()
+    # Import urljoin and urlunparse for constructing prod URL
+    from urllib.parse import urljoin, urlunparse
     main(args.config)
