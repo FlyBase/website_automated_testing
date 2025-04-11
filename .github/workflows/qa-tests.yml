@@ -10,6 +10,13 @@ permissions:
   id-token: write     # Needed for deploy-pages OIDC in the target environment
   actions: read
 
+concurrency:
+  # Group workflow runs by workflow name and the branch/tag ref
+  # This ensures cancellations only happen for the same workflow on the same branch
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Set cancel-in-progress to true to cancel older running workflows in the same group
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
