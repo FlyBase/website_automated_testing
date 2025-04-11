@@ -33,7 +33,7 @@ if not API_KEY:
 
 # Initialize OpenAI client (v1.x)
 client = OpenAI()
-MODEL_NAME = "gpt-4o"
+MODEL_NAME = "gpt-4o-mini"
 
 FUNCTION_SCHEMA = [
     {
