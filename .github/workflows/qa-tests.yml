@@ -1,6 +1,8 @@
 name: QA Tests and Publish
 
 on:
+  # You can push or do manual triggers:
+  push:
   workflow_dispatch:
 
 jobs:
@@ -10,10 +12,9 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v3
 
-      - name: Build QA Docker image
+      - name: Build Docker image
         run: docker build -t my-qa-image .
 
-      # Provide the secret to the container as WAF_SECRET_HEADER
       - name: Run QA tests in Docker
         run: |
           mkdir -p artifacts
@@ -28,13 +29,16 @@ jobs:
           pip install jinja2
           python scripts/generate_html_report.py
 
-      - name: Configure GitHub Pages
+      # Configure Pages (optional but recommended)
+      - name: Configure Pages
         uses: actions/configure-pages@v3
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v2
+      # Upload site as an artifact
+      - name: Upload artifact for Pages
+        uses: actions/upload-artifact@v4
         with:
-          path: docs
+          name: pages
+          path: docs   # The folder where your final index.html is
 
   deploy:
     needs: build-and-test
@@ -42,3 +46,5 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v1
+        with:
+          artifact_name: pages
