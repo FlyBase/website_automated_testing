@@ -119,7 +119,7 @@ tests:
     actions_before_capture:
   - action: click
     locate_by: css_selector
-    value: "a[href='#variants_div']"
+    value: "a.js-trigger-open[data-toggle-target='variants_div_sub'][href='#variants_div']"
     wait_after_s: 5
     prompt: |
       Check for data in the Variant Effect Predictor (VEP) Analysis of FlyBase variant data table. It should have Variants, Affected Genes, Related Alleles, and Affect Transcripts data. 
