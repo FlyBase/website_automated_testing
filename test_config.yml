@@ -54,6 +54,7 @@ tests:
     check_types:
       - picture
     compare_to_production: true
+    extra_wait_s: 10
     prompt: |
       Some of the small square boxes above the words "adult cell types - Fly Cell Atlas scRNA-seq", should have shades of blue or maroon in them.
 
@@ -63,6 +64,7 @@ tests:
     check_types:
       - picture
     compare_to_production: true
+    extra_wait_s: 10
     prompt: |
       Some of the small square boxes above the words "anatomy - manually curated", should have shades of teal in them.
 
@@ -72,6 +74,7 @@ tests:
     check_types:
       - picture
     compare_to_production: true
+    extra_wait_s: 10
     prompt: |
       Some of the small square boxes above the words "stages - modENCODE RNA-seq", should have shades of yellow, orange, or maroon in them.
 
