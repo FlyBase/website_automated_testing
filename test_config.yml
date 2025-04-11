@@ -1,0 +1,241 @@
+tests:
+  - name: "GAL4 Drivers Table Broken Page"
+    enabled: true
+    url: "https://preview.flybase.org/GAL4/freq_used_drivers/" # Placeholder - Needs specific GAL4 table URL
+    ticket: WEB-2346
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify the Frequently Used GAL4 Drivers table does not show a 'Something is broken' error page.
+
+  - name: "GAL4 QS Search Interaction and Result Load"
+    enabled: false
+    url: "https://flybase.org/search/" # Please verify this is the correct starting page
+    check_types: 
+      - text
+    compare_to_production: false 
+    prompt: |
+      Check Gene Group (FlyBase) and Pathway (FlyBase) reports. Function and Summaries sections should be separate, not merged. Ref WEB-2346.
+    
+  - name: "Function/Summaries Merged in Gene Group Reports"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs specific Gene Group/Pathway report URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Check Gene Group (FlyBase) and Pathway (FlyBase) reports. Function and Summaries sections should be separate, not merged. Ref WEB-2346.
+
+  - name: "Signaling Pathways Section Empty"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs specific page URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify the Signaling Pathways (FlyBase) section is populated with data. Ref WEB-2346.
+
+  - name: "Ribbons Data Not Regenerated"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs page with ribbons URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Check ribbons data (e.g., GO ribbons) to ensure it has been regenerated with current data. Ref WEB-2346.
+
+  - name: "FBco Objects Missing in Hitlists"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs specific search/hitlist URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify that FBco identifiers appear as objects in search result hitlists. Ref WEB-2346.
+
+  - name: "Variant Molecular Consequences Missing"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs specific Allele/Gene report URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Check allele and gene reports for missing Variant Molecular Consequences data. Ref WEB-2346.
+
+  - name: "New HDMs Not Searchable by Disease"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs Disease QS tab URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify new Human Disease Models (HDMs, e.g., FBhh0001595) are searchable via the Disease QS tab by FBhh or disease name (e.g., PIGA). Ref WEB-2346.
+
+  - name: "Non-Current Pathway Thumbnails Persist"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs specific pathway gene group report URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Check pathway gene group reports for non-current pathway thumbnails; ensure they are fixed. Ref WEB-2346.
+
+  - name: "Old Symbol in GO Ribbons (Preview)"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs specific gene page URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Check GO ribbons on preview; ensure symbols are current and crossrefs were pulled. Ref WEB-2371.
+
+  - name: "CVTerm Reports Unchanged (Preview - Crossrefs Missing)"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs specific CVTerm report URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify CVTerm reports on preview differ from production due to updated crossrefs. Ref WEB-2372.
+
+  - name: "Gene Group Pages Down"
+    enabled: true
+    url: "https://preview.flybase.org/reports/FBgg0000913.html"
+    ticket: WEB-2374
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Check that the page loads without the following error: No Data to Display or 503 Service Unavailable.
+
+  - name: "Frequently Used GAL4 Drivers Table Not Updated"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs specific GAL4 table URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Check the Frequently Used GAL4 Drivers table to ensure it reflects recent updates. Ref WEB-2376.
+
+  - name: "GO Ribbons on Gene Pages Not Updated"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs specific gene page URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify that GO ribbons on gene pages display updated GO data. Ref WEB-2377.
+
+  - name: "Split Systems Combination View Broken (Staging)"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs GAL4 QS results URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      On Staging/Preview, check the Split Systems Combination view in GAL4 etc. QS search results. Ref WEB-2378.
+
+  - name: "HT Expression Data Missing (Staging)"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs page displaying HT expression URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify High Throughput expression data (modENCODE, FlyAtlas) is present on Staging/Preview. Ref WEB-2379.
+
+  - name: "Incorrect Release Date (Staging)"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs page displaying release date
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify the release date displayed on Staging/Preview is correct. Ref WEB-2397.
+
+  - name: "WEB-2390 Fixes Not Visible (Preview)"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs URL related to WEB-2390 fixes
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify fixes/additions addressed in WEB-2390 are visible on Preview.
+
+  - name: "New GO Data Missing from Ribbons/Reports (Preview)"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs gene/pathway report URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Check GO ribbons on gene pages and pathway reports on Preview for new GO data. Ref WEB-2401.
+
+  - name: "Pathway Statement on All Gene Group Reports (Preview/Staging)"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs specific gene group report URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify pathway canned statement does not incorrectly appear on all gene group reports (Preview/Staging). Ref WEB-2402.
+
+  - name: "Complex List Missing New Complexes"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs complex list page URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify the complex list includes newly added complexes. Ref WEB-2416, WEB-2417.
+
+  - name: "GO Ribbon Data Not Updated"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs gene/gene group page URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Check GO ribbons on gene and gene group pages for updated data. Ref WEB-2416, WEB-2418.
+
+  - name: "New Metabolic Reports Not Suggested in Search"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs search interface URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Search for newly added metabolic reports; verify they appear in search suggestions drop-down. Ref WEB-2416, WEB-2419.
+
+  - name: "BLAST Button Leads to Service Unavailable"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder - Needs page with BLAST button URL
+    check_types:
+      - text
+      - picture
+    compare_to_production: true
+    prompt: |
+      Verify the BLAST button does not lead to a 'service unavailable' page. Ref WEB-2416, WEB-2420.
