@@ -46,7 +46,7 @@ tests:
       - picture
     compare_to_production: true
     prompt: |
-      The ribbons, or small boxes here, should have shades of blue in them. Ref WEB-2346.
+      Some of the small square boxes above the words molecular function, biological process, and cellular component, should have shades of blue in them.
 
   - name: "FBco Objects Missing in Hitlists"
     enabled: false
