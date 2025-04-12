@@ -41,7 +41,7 @@ if not API_KEY:
     sys.exit("Please set the OPENAI_API_KEY environment variable...")
 
 client = OpenAI()
-MODEL_NAME = "gpt-4o-mini"
+MODEL_NAME = "gpt-4o"
 
 FUNCTION_SCHEMA = [
     # ... (Function schema remains the same) ...

@@ -85,7 +85,7 @@ tests:
         value: "a.js-trigger-open[data-toggle-target='expression_sub']"
         wait_after_s: 5
     prompt: |
-      Verify the 'adult cell types - Fly Cell Atlas scRNA-seq' ribbon displays colored tiles (blue/maroon shades) for expressed cell types, according to the legend. Grey tiles indicating no data are acceptable.
+      Verify the 'adult cell types - Fly Cell Atlas scRNA-seq' ribbon displays colored tiles (blue/maroon shades) for expressed cell types, according to the legend. Grey tiles indicating no data are acceptable. It should look similar to the production website.
   
   - name: "FlyBase Anatomy Expression Ribbon Data Not Regenerated"
     enabled: true
@@ -100,7 +100,7 @@ tests:
         value: "a.js-trigger-open[data-toggle-target='expression_sub']"
         wait_after_s: 5
     prompt: |
-      Verify the 'anatomy - manually curated' ribbon displays colored tiles (dark blue/teal shades) for anatomical location, according to the legend.
+      Verify the 'anatomy - manually curated' ribbon displays colored tiles (dark blue/teal shades) for anatomical location, according to the legend. It should look similar to the production website.
   
   - name: "modENCODE RNA-seq Expression Ribbon Data Not Regenerated"
     enabled: true
@@ -115,7 +115,7 @@ tests:
         value: "a.js-trigger-open[data-toggle-target='expression_sub']"
         wait_after_s: 5
     prompt: |
-      Verify the 'stages - modENCODE RNA-seq' ribbon displays colored tiles (orange/red/brown shades) for expressed larval stages, according to the legend.
+      Verify the 'stages - modENCODE RNA-seq' ribbon displays colored tiles (orange/red/brown shades) for expressed larval stages, according to the legend. It should look similar to the production website.
   
   - name: "FBco Objects Missing in Hitlists"
     enabled: false
