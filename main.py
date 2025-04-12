@@ -4,6 +4,7 @@ import time
 import json
 import base64
 import yaml
+import json
 import difflib
 import argparse
 from urllib.parse import urlparse, urldefrag, urljoin, urlunparse
@@ -162,7 +163,7 @@ def wait_for_page_conditions(driver, url_loaded, extra_wait_s=None):
 def perform_actions(driver, actions):
     """ Performs a list of actions defined in the YAML, scrolling element into view first. """
     if not actions:
-        return True # No actions to perform
+        return True
 
     print("    Performing actions before capture...")
     for i, action_def in enumerate(actions):
@@ -172,18 +173,17 @@ def perform_actions(driver, actions):
         # Get specific default wait based on action type
         default_wait = DEFAULT_WAIT_AFTER_CLICK_S
         if action_type == "input_text": default_wait = DEFAULT_WAIT_AFTER_INPUT_S
-        if action_type == "press_key": default_wait = DEFAULT_WAIT_AFTER_KEY_S # Note: ENTER often needs longer override in YAML
+        if action_type == "press_key": default_wait = DEFAULT_WAIT_AFTER_KEY_S
 
         wait_after_s = action_def.get("wait_after_s", default_wait)
-        # Build description string safely
         action_desc = f"Action #{i+1} ({action_type}"
         if locate_by: action_desc += f": {locate_by}='{value}'"
         action_desc += ")"
 
-
         # --- Map locator strategy ---
         locator_strategy = None
-        if locate_by: # Only map if locate_by is provided
+        if locate_by:
+            # ... (locator mapping remains the same) ...
             if locate_by == "css_selector": locator_strategy = By.CSS_SELECTOR
             elif locate_by == "xpath": locator_strategy = By.XPATH
             elif locate_by == "id": locator_strategy = By.ID
@@ -194,25 +194,22 @@ def perform_actions(driver, actions):
             else:
                 print(f"    ERROR: Invalid 'locate_by' value ('{locate_by}') for {action_desc}.")
                 return False
-        elif action_type in ["click", "input_text", "press_key"]: # Check if locator is needed
+        elif action_type in ["click", "input_text", "press_key"]:
              print(f"    ERROR: Missing 'locate_by' or 'value' for required action '{action_type}' ({action_desc}).")
              return False
 
-
         # --- Preliminary Find and Scroll ---
         element_to_interact = None
-        if locator_strategy: # Only scroll if we have a locator
+        if locator_strategy:
             try:
                 print(f"      Ensuring element is present for scrolling: {locate_by}='{value}'")
-                # Wait briefly for presence first
                 preliminary_element = WebDriverWait(driver, CLICK_WAIT_TIMEOUT_S / 2).until(
                      EC.presence_of_element_located((locator_strategy, value))
                 )
                 print(f"      Scrolling element into view (center): {locate_by}='{value}'")
-                # Scroll element to center of view, nearest scrollable ancestor
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", preliminary_element)
-                time.sleep(0.3) # Small pause after scroll to let things settle
-                element_to_interact = preliminary_element # Store for later use if needed, though waits below re-find
+                time.sleep(0.3)
+                element_to_interact = preliminary_element
             except TimeoutException:
                 print(f"    ERROR: Timed out finding element *before* interaction/scroll for {action_desc}.")
                 return False
@@ -220,12 +217,10 @@ def perform_actions(driver, actions):
                 print(f"    ERROR: Could not find or scroll to element for {action_desc}: {scroll_err}")
                 return False
 
-
         # --- Action Execution (with waits for interactability) ---
         try:
-            element = None # Re-find or wait for state change after scroll
+            element = None
             if action_type == "click":
-                # Now wait for clickable *after* scrolling
                 print(f"      Waiting for element to be clickable: {locate_by}='{value}' (Timeout: {CLICK_WAIT_TIMEOUT_S}s)")
                 element = WebDriverWait(driver, CLICK_WAIT_TIMEOUT_S).until(
                     EC.element_to_be_clickable((locator_strategy, value))
@@ -235,7 +230,7 @@ def perform_actions(driver, actions):
 
             elif action_type == "input_text":
                 text_to_input = action_def.get("text")
-                if text_to_input is None: # Check if text value exists
+                if text_to_input is None:
                     print(f"    ERROR: Missing 'text' field for input_text action ({action_desc}).")
                     return False
                 # Wait for visibility *after* scrolling
@@ -244,19 +239,18 @@ def perform_actions(driver, actions):
                     EC.visibility_of_element_located((locator_strategy, value))
                 )
 
-                # --- Explicitly click before sending keys --- <<< MODIFICATION HERE >>>
-                try:
-                    print(f"      Explicitly clicking input field before typing: {locate_by}='{value}'")
-                    element.click()
-                    time.sleep(0.2) # Tiny pause after click before typing
-                except Exception as click_err:
-                    # Log a warning but try send_keys anyway, maybe click wasn't needed/possible
-                    print(f"    WARNING: Could not explicitly click input field (continuing with send_keys): {click_err}")
-                # -------------------------------------------
+                # --- Set value using JavaScript --- <<< MODIFICATION HERE >>>
+                print(f"      Setting input value via JavaScript: {locate_by}='{value}'")
+                # Use json.dumps to safely escape the text for JavaScript
+                js_escaped_text = json.dumps(text_to_input)
+                driver.execute_script(f"arguments[0].value = {js_escaped_text};", element)
 
-                print(f"      Inputting text into: {locate_by}='{value}'")
-                # element.clear() # Optional: uncomment if field needs clearing first
-                element.send_keys(text_to_input)
+                # Optional: Trigger change/input events if the page/typeahead needs them
+                # If setting value works but pressing Enter later fails, uncomment these.
+                # print("      Triggering 'input' and 'change' events after JS set.")
+                # driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", element)
+                # driver.execute_script("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", element)
+                # ----------------------------------
 
             elif action_type == "press_key":
                 key_name = action_def.get("key")
@@ -264,17 +258,13 @@ def perform_actions(driver, actions):
                      print(f"    ERROR: Missing 'key' field for press_key action ({action_desc}).")
                      return False
 
-                # Map key name string to Selenium Keys object
                 key_to_press = None
                 if key_name.upper() == "ENTER": key_to_press = Keys.ENTER
                 elif key_name.upper() == "TAB": key_to_press = Keys.TAB
-                # Add more keys as needed (e.g., ESCAPE, SPACE)
-                # elif key_name.upper() == "ESCAPE": key_to_press = Keys.ESCAPE
                 else:
                     print(f"    ERROR: Unsupported key name '{key_name}' for {action_desc}.")
                     return False
 
-                # Wait for visibility *after* scrolling
                 print(f"      Waiting for element visibility: {locate_by}='{value}' (Timeout: {CLICK_WAIT_TIMEOUT_S}s)")
                 element = WebDriverWait(driver, CLICK_WAIT_TIMEOUT_S).until(
                     EC.visibility_of_element_located((locator_strategy, value))
@@ -284,7 +274,7 @@ def perform_actions(driver, actions):
 
             else:
                 print(f"    WARNING: Unsupported action type '{action_type}' in {action_desc}. Skipping.")
-                continue # Skip wait for unsupported actions
+                continue
 
             # Wait after successful action if specified
             if wait_after_s > 0:
@@ -292,17 +282,18 @@ def perform_actions(driver, actions):
                 time.sleep(wait_after_s)
 
         # --- Error Handling ---
+        # ... (Error handling remains the same as previous version) ...
         except TimeoutException:
             print(f"    ERROR: Timed out waiting for element state (clickable/visible) for {action_desc}.")
             return False
         except (NoSuchElementException, StaleElementReferenceException) as e:
             print(f"    ERROR: Element not found or stale during interaction for {action_desc}: {e}")
             return False
-        except ElementClickInterceptedException: # Specific to click
+        except ElementClickInterceptedException:
              print(f"    ERROR: Element click intercepted for {action_desc}. Trying JavaScript click.")
-             try: # JS Click Fallback
-                 element = driver.find_element(locator_strategy, value) # Re-find just in case
-                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", element) # Ensure scroll again
+             try:
+                 element = driver.find_element(locator_strategy, value)
+                 driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", element)
                  time.sleep(0.2)
                  driver.execute_script("arguments[0].click();", element)
                  print("      JavaScript click executed.")
@@ -312,13 +303,10 @@ def perform_actions(driver, actions):
                  return False
         except Exception as e:
             print(f"    ERROR: Unexpected error during {action_desc}: {e}")
-            # Optionally re-raise or log traceback here for more detail
-            # import traceback
-            # traceback.print_exc()
             return False
 
     print("    Finished performing actions.")
-    return True # All actions completed successfully
+    return True
 
 # <<< Other functions (capture_page_text, capture_page_screenshot, etc.) remain the same >>>
 def capture_page_text(driver):
