@@ -27,6 +27,30 @@ from selenium.common.exceptions import (
 # CONFIGURATION AND HELPERS
 ###############################################################################
 
+SYSTEM_PROMPT_CONTENT = """
+You are a meticulous QA automation assistant evaluating web page tests for FlyBase.org, a Drosophila genomics database.
+Your task is to determine if a test passes or fails based on a user prompt and the provided evidence (text content and/or screenshots).
+
+You will receive:
+1.  **User Prompt:** Describes the specific condition to verify (e.g., check for errors, verify content presence/absence, check visual elements, compare states). **This is the primary requirement.**
+2.  **Text Content:** Provided in ``` code blocks, potentially labeled "Production Text", "Preview State Text", or "Preview Page Text". Use this to verify textual requirements from the prompt.
+3.  **Screenshots:** Provided as images, potentially labeled "Production Screenshot" and "Preview State Screenshot". Use these to verify visual requirements from the prompt (layout, specific elements, colors, absence of errors). Note: Screenshot capture might occasionally fail; proceed with text evaluation if possible.
+
+Evaluation Guidelines:
+- **Focus on the User Prompt:** Base your pass/fail decision strictly on whether the evidence meets the criteria defined in the prompt.
+- **Comparison Tests (Production vs. Preview):** Carefully compare the Production and Preview text/screenshots. Look for differences relevant to the prompt's goal. Minor rendering variations (e.g., slight spacing, anti-aliasing) are usually acceptable unless the prompt specifically targets them. A failure occurs if Preview shows an incorrect state (e.g., an error, missing data, wrong visual) compared to Production OR compared to the explicit expectation in the prompt.
+- **Single Page Tests:** Evaluate the provided "Preview Page Text" and/or "Preview State Screenshot" directly against the criteria in the user prompt.
+- **Text Checks:** Look for specific error messages, expected text strings, or the absence of specific text as required by the prompt.
+- **Image Checks:** Visually inspect screenshots for layout correctness, presence/absence of UI elements, correct data display (e.g., colored boxes as described), error messages, etc., according to the prompt.
+- **Action Failures:** If the user provides a note like "*** NOTE: An action failed before capture... ***", consider this when evaluating the state. The state might be incorrect due to the failed action. Evaluate if the *resulting* state (even if incomplete) meets the prompt's criteria or if the action failure itself constitutes a test failure based on the prompt.
+
+Output Requirements (Function Call):
+- Call the `record_test_result` function.
+- `result`: Must be "pass" or "fail".
+- `failed_component`: If failed, specify "text", "image", "both", "page load", or "action" based on the primary reason for failure identified from the evidence and prompt. If passed, use "none".
+- `explanation`: Provide a clear, concise explanation for your decision, directly referencing the prompt and the specific evidence (text or visual element) that led to the pass or fail status. E.g., "Test failed because the 'Something is broken' text was found in the Preview Text." or "Test passed as the preview screenshot shows blue boxes in the GO ribbon as required by the prompt." Avoid generic explanations.
+"""
+
 ARTIFACTS_DIR = "/app/artifacts"
 PROD_BASE_URL = "https://flybase.org"
 DEFAULT_POST_LOAD_WAIT_S = 1.5
@@ -44,7 +68,6 @@ client = OpenAI()
 MODEL_NAME = "gpt-4o"
 
 FUNCTION_SCHEMA = [
-    # ... (Function schema remains the same) ...
         {
         "name": "record_test_result",
         "description": (
@@ -77,7 +100,6 @@ FUNCTION_SCHEMA = [
 
 def setup_selenium():
     """Setup Selenium with headless Chrome/Chromium, and inject WAF header."""
-    # ... (Setup remains the same) ...
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
@@ -98,7 +120,6 @@ def setup_selenium():
 
 def wait_for_page_conditions(driver, url_loaded, extra_wait_s=None):
     """Handles waiting for readyState, fragment scroll, and applies a fixed wait."""
-    # ... (Wait logic remains the same) ...
     WebDriverWait(driver, 25).until(lambda d: d.execute_script('return document.readyState') == 'complete')
     print(f"    Page '{url_loaded}' loaded (readyState complete).")
 
@@ -138,7 +159,6 @@ def wait_for_page_conditions(driver, url_loaded, extra_wait_s=None):
         time.sleep(wait_duration)
 
 
-# <<< MODIFIED: Function to handle actions with automatic scrolling >>>
 def perform_actions(driver, actions):
     """ Performs a list of actions defined in the YAML, scrolling element into view first. """
     if not actions:
@@ -302,7 +322,6 @@ def perform_actions(driver, actions):
 
 # <<< Other functions (capture_page_text, capture_page_screenshot, etc.) remain the same >>>
 def capture_page_text(driver):
-    # ... (same) ...
     try:
         body_element = driver.find_element(By.XPATH, "//body")
         return body_element.text
@@ -311,7 +330,6 @@ def capture_page_text(driver):
         return f"Error capturing text: {e}"
 
 def capture_page_screenshot(driver, screenshot_filename_with_path):
-    # ... (same) ...
     try:
         os.makedirs(os.path.dirname(screenshot_filename_with_path), exist_ok=True)
         driver.save_screenshot(screenshot_filename_with_path)
@@ -323,13 +341,11 @@ def capture_page_screenshot(driver, screenshot_filename_with_path):
         return None
 
 def encode_image_to_data_uri(image_bytes, image_format="png"):
-    # ... (same) ...
     if image_bytes is None: return ""
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
     return f"data:image/{image_format};base64,{image_b64}"
 
 def load_yaml_config(config_path):
-    # ... (same) ...
     try:
         with open(config_path, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file)
@@ -352,7 +368,6 @@ def load_yaml_config(config_path):
          sys.exit(1)
 
 def call_openai_api(messages):
-    # ... (same) ...
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME, messages=messages, functions=FUNCTION_SCHEMA,
@@ -367,7 +382,6 @@ def call_openai_api(messages):
         return None
 
 def parse_api_response(response):
-    # ... (same) ...
     result_status = "fail"; failed_component = "unknown"; explanation = "Could not parse API response or API call failed."
     if not response: explanation = "No API response received (API call likely failed)."
     else:
@@ -402,7 +416,6 @@ def run_test(driver, test_def):
     Returns a dict with test name, prompt, result, failed_component, and explanation.
     """
     # --- Test Definition Extraction ---
-    # ... (remains the same) ...
     test_name = test_def.get("name", "Unnamed Test")
     safe_test_name = "".join(c if c.isalnum() or c in ('_','-') else '_' for c in test_name).rstrip('_')
     prompt = test_def.get("prompt", "")
@@ -415,7 +428,6 @@ def run_test(driver, test_def):
     actions_to_perform = test_def.get("actions_before_capture", [])
 
     # --- Pre-checks ---
-    # ... (remains the same) ...
     if not enabled:
         print(f"Skipping disabled test: {test_name}")
         return {"test_name": test_name, "result": "skipped", "failed_component": "none", "explanation": "Test is disabled.", "prompt": prompt}
@@ -427,7 +439,6 @@ def run_test(driver, test_def):
     prod_url = None
 
     # --- URL Setup ---
-    # ... (remains the same) ...
     if compare_to_production:
         try:
             parsed_target = urlparse(preview_url)
@@ -452,9 +463,7 @@ def run_test(driver, test_def):
         print(f"Actions to perform before capture: {len(actions_to_perform)}")
 
     # --- Prepare for OpenAI API Call ---
-    # ... (remains the same) ...
-    system_content = "You are a meticulous QA automation assistant..."
-    messages = [{"role": "system", "content": system_content}]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT_CONTENT}] # Use the constant defined at the top
     user_content_parts = []
     screenshots_data = []
     prompt_display = f"Test: {test_name}\nPrompt: {prompt}"
@@ -462,7 +471,6 @@ def run_test(driver, test_def):
     user_content_parts.append({"type": "text", "text": prompt_display})
 
     # --- Main Test Logic ---
-    # ... (This logic calling perform_actions and capture functions remains the same as the previous correct version) ...
     action_failure = False
     try:
         if compare_to_production: # This implies prod_url is valid
@@ -568,7 +576,6 @@ def run_test(driver, test_def):
              user_content_parts.append({"type": "text", "text": "\n*** NOTE: An action failed before capture. The text/screenshot may reflect the state BEFORE the failed action completed. ***"})
 
     except Exception as page_err:
-        # ... (Error handling remains the same) ...
         error_msg = f"Failed during page load, action, or data capture for test '{test_name}'. URL(s): {preview_url}";
         if prod_url: error_msg += f", {prod_url}"
         error_msg += f". Error: {page_err}"; print(f"    ERROR: {error_msg}")
@@ -579,7 +586,6 @@ def run_test(driver, test_def):
         return {"test_name": test_name, "result": "fail", "failed_component": "page load/action/capture", "explanation": error_msg, "prompt": prompt}
 
     # --- Finalize and Call OpenAI API ---
-    # ... (remains the same) ...
     if "picture" in check_types and not screenshots_data:
         print(f"Note for test '{test_name}': Proceeding without images as capture failed/returned None.")
 
@@ -595,7 +601,6 @@ def run_test(driver, test_def):
 
 # <<< main function remains unchanged >>>
 def main(config_path):
-    # ... (Setup, loop, driver quit, result processing remain the same) ...
     try:
         os.makedirs(ARTIFACTS_DIR, exist_ok=True)
         print(f"Artifacts will be saved to container path: {ARTIFACTS_DIR}")
