@@ -141,7 +141,7 @@ tests:
         value: "a.js-trigger-open[data-toggle-target='variants_div_sub'][href='#variants_div']"
         wait_after_s: 5
     prompt: |
-      Check for data in the Variant Effect Predictor (VEP) Analysis of FlyBase variant data table. It should have Variants, Affected Genes, Related Alleles, and Affect Transcripts data.
+      Check for data in the Variant Effect Predictor (VEP) Analysis of FlyBase variant data table. It should have Variants, Affected Genes, Related Alleles, and Affect Transcripts data. Note: This is not the brown table, but the plain white table above it. The entry should have "Insertion" under the Variant column.
 
   - name: "New HDMs Not Searchable by Disease"
     enabled: false
