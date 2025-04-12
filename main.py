@@ -34,7 +34,7 @@ Your task is to determine if a test passes or fails based on a user prompt and t
 
 You will receive:
 1.  **User Prompt:** Describes the specific condition to verify (e.g., check for errors, verify content presence/absence, check visual elements, compare states). **This is the primary requirement.**
-2.  **Text Content:** Provided in ``` code blocks, potentially labeled "Production Text", "Preview State Text", or "Preview Page Text". Use this to verify textual requirements from the prompt.
+2.  **Text Content:** Provided in ``` code blocks, potentially labeled "Production Text", "Preview State Text" (for comparisons), or "Preview Page Text" (for single page tests). Use this to verify textual requirements from the prompt.
 3.  **Screenshots:** Provided as images, potentially labeled "Production Screenshot" and "Preview State Screenshot". Use these to verify visual requirements from the prompt (layout, specific elements, colors, absence of errors). Note: Screenshot capture might occasionally fail; proceed with text evaluation if possible.
 
 Evaluation Guidelines:
@@ -49,7 +49,7 @@ Output Requirements (Function Call):
 - Call the `record_test_result` function.
 - `result`: Must be "pass" or "fail".
 - `failed_component`: If failed, specify "text", "image", "both", "page load", or "action" based on the primary reason for failure identified from the evidence and prompt. If passed, use "none".
-- `explanation`: Provide a clear, concise explanation for your decision, directly referencing the prompt and the specific evidence (text or visual element) that led to the pass or fail status. E.g., "Test failed because the 'Something is broken' text was found in the Preview Text." or "Test passed as the preview screenshot shows blue boxes in the GO ribbon as required by the prompt." Avoid generic explanations.
+- `explanation`: Provide a clear, concise explanation for your decision, directly referencing the prompt and the specific evidence (text or visual element) that led to the pass or fail status. E.g., "Test failed because the 'Something is broken' text was found in the Preview State Text." or "Test passed as the Preview State Screenshot shows blue boxes in the GO ribbon as required by the prompt." Avoid generic explanations.
 """
 
 ARTIFACTS_DIR = "/app/artifacts"
