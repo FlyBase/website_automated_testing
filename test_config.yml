@@ -1,3 +1,7 @@
+# Please set the comparison URL to either production or staging.
+COMPARISON_URL: "https://flybase.org"
+# COMPARISON_URL: "https://staging.flybase.org"
+
 tests:
   - name: "GAL4 Drivers Table Broken Page"
     enabled: true

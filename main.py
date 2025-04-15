@@ -53,7 +53,6 @@ Output Requirements (Function Call):
 """
 
 ARTIFACTS_DIR = "/app/artifacts"
-PROD_BASE_URL = "https://flybase.org"
 DEFAULT_POST_LOAD_WAIT_S = 1.5
 CLICK_WAIT_TIMEOUT_S = 10 # Timeout for finding/waiting for elements
 DEFAULT_WAIT_AFTER_CLICK_S = 1.0
@@ -337,14 +336,15 @@ def load_yaml_config(config_path):
     try:
         with open(config_path, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file)
+        comparison_url = config.get("COMPARISON_URL", "https://flybase.org")
         tests = config.get("tests")
         if tests is None:
              print(f"Warning: 'tests' key not found in {config_path}. Returning empty list.")
-             return []
+             return [], comparison_url
         if not isinstance(tests, list):
             print(f"Warning: 'tests' key in {config_path} is not a list. Returning empty list.")
-            return []
-        return tests
+            return [], comparison_url
+        return tests, comparison_url
     except FileNotFoundError:
         print(f"Error: Configuration file not found at {config_path}")
         sys.exit(1)
@@ -398,7 +398,7 @@ def parse_api_response(response):
     return {"result": result_status, "failed_component": failed_component, "explanation": explanation}
 
 
-def run_test(driver, test_def):
+def run_test(driver, test_def, comparison_url):
     """
     Execute a test: navigate, wait, perform actions, capture, analyze.
     Returns a dict with test name, prompt, result, failed_component, and explanation.
@@ -414,6 +414,20 @@ def run_test(driver, test_def):
     check_types = test_def.get("check_types", [])
     ticket = test_def.get("ticket", "")
     actions_to_perform = test_def.get("actions_before_capture", [])
+
+    # --- Label and Suffix Logic ---
+    if comparison_url == "https://flybase.org":
+        prod_label = "Production Screenshot"
+        prod_text_label = "Production Text"
+        prod_suffix = "_prod"
+    elif comparison_url == "https://stage.flybase.org":
+        prod_label = "Staging Screenshot"
+        prod_text_label = "Staging Text"
+        prod_suffix = "_stage"
+    else:
+        prod_label = "Production Screenshot"
+        prod_text_label = "Production Text"
+        prod_suffix = "_prod"
 
     # --- Pre-checks ---
     if not enabled:
@@ -432,7 +446,7 @@ def run_test(driver, test_def):
             parsed_target = urlparse(preview_url)
             path = parsed_target.path if parsed_target.path else "/"
             prod_path_query_fragment = urlunparse(('', '', path, parsed_target.params, parsed_target.query, parsed_target.fragment))
-            prod_url = urljoin(PROD_BASE_URL.rstrip('/') + '/', prod_path_query_fragment.lstrip('/'))
+            prod_url = urljoin(comparison_url.rstrip('/') + '/', prod_path_query_fragment.lstrip('/'))
         except Exception as e:
             print(f"Warning: Could not construct production URL for comparison from {preview_url}: {e}")
             compare_to_production = False
@@ -463,7 +477,7 @@ def run_test(driver, test_def):
     try:
         if compare_to_production: # This implies prod_url is valid
             user_content_parts.append({"type": "text", "text": f"\n--- Comparing Production vs Preview ---"})
-            user_content_parts.append({"type": "text", "text": f"Production URL: {prod_url}"})
+            user_content_parts.append({"type": "text", "text": f"{prod_label}: {prod_url}"})
             user_content_parts.append({"type": "text", "text": f"Preview URL: {preview_url}"})
 
             # --- Production Data Capture ---
@@ -477,22 +491,22 @@ def run_test(driver, test_def):
 
             if "text" in check_types and not action_failure:
                 prod_text = capture_page_text(driver)
-                prod_text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_prod.txt")
+                prod_text_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}{prod_suffix}.txt")
                 try:
                     with open(prod_text_path, "w", encoding="utf-8") as f: f.write(prod_text)
                     print(f"    Saved text artifact: {prod_text_path}")
                 except Exception as e: print(f"    Warning: Could not save prod text file: {e}")
-                user_content_parts.append({"type": "text", "text": f"\nProduction Text:\n```\n{prod_text}\n```"})
+                user_content_parts.append({"type": "text", "text": f"\n{prod_text_label}:\n```\n{prod_text}\n```"})
             elif "text" in check_types and action_failure:
-                 user_content_parts.append({"type": "text", "text": "\nProduction Text: (Skipped due to action failure)"})
+                 user_content_parts.append({"type": "text", "text": f"\n{prod_text_label}: (Skipped due to action failure)"})
 
             if "picture" in check_types:
-                prod_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_prod.png")
+                prod_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}{prod_suffix}.png")
                 prod_screenshot_bytes = capture_page_screenshot(driver, prod_screenshot_path)
                 prod_img_uri = encode_image_to_data_uri(prod_screenshot_bytes)
                 if prod_img_uri:
                     screenshots_data.append({"type": "image_url", "image_url": {"url": prod_img_uri}})
-                    user_content_parts.append({"type": "text", "text": "\nProduction Screenshot:"})
+                    user_content_parts.append({"type": "text", "text": f"\n{prod_label}:"})
                 else: print(f"    Warning: Failed to get Production screenshot")
 
             # --- Preview Data Capture ---
@@ -594,7 +608,7 @@ def main(config_path):
         print(f"Artifacts will be saved to container path: {ARTIFACTS_DIR}")
     except OSError as e: print(f"Error creating artifacts directory {ARTIFACTS_DIR}: {e}")
 
-    tests = load_yaml_config(config_path)
+    tests, comparison_url = load_yaml_config(config_path)
     if not tests: print("No tests found/loaded."); return
 
     driver = None
@@ -606,7 +620,7 @@ def main(config_path):
                 print(f"Warning: Skipping invalid test definition: {test_def}"); continue
             result = None
             try:
-                result = run_test(driver, test_def)
+                result = run_test(driver, test_def, comparison_url)
             except Exception as err:
                 test_name_fallback = test_def.get("name", "Unknown Test")
                 prompt_fallback = test_def.get("prompt", "")
