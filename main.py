@@ -196,18 +196,42 @@ def load_yaml_config(cfg_path):
 ###############################################################################
 # OPENAI COMMUNICATION  (Responses + Chat fallback)
 ###############################################################################
-def _transform_parts(parts):
-    out = []
+def _transform_parts(parts: list[dict]) -> list[dict]:
+    """
+    Convert our internal 'text' / 'image_url' blocks into the exact
+    objects the Responses API expects.
+
+    •  image_url MUST be a plain string (data-URI or http URL)
+    •  detail is a peer field, not nested inside image_url
+    """
+    out: list[dict] = []
     for p in parts:
         if p["type"] == "text":
             out.append({"type": "input_text", "text": p["text"]})
+
         elif p["type"] == "image_url":
-            out.append({"type": "input_image", "image_url": p["image_url"]})
+            img = p["image_url"]
+            if isinstance(img, dict):          # we stored {"url": str, "detail": "high"}
+                out.append(
+                    {
+                        "type": "input_image",
+                        "image_url": img["url"],        # plain string
+                        "detail":   img.get("detail", "auto"),
+                    }
+                )
+            else:                               # already a string data‑URI
+                out.append({"type": "input_image", "image_url": img})
+
+        else:
+            print(f"    [WARN] unknown part type {p['type']} - skipped")
     return out
 
 
-def call_openai_api(system_prompt: str, user_parts: list):
-    """Send to Responses API; on failure, fall back to chat.completions."""
+def call_openai_api(system_prompt: str, user_parts: list[dict]):
+    """
+    Send a single-turn request to the Responses API
+    and return the raw Response object or None on fatal error.
+    """
     msg = {
         "role": "user",
         "content": [
@@ -219,16 +243,15 @@ def call_openai_api(system_prompt: str, user_parts: list):
         ],
     }
 
-    # --- Primary path: Responses API -----------------------------------
     try:
         return client.responses.create(
-            model=MODEL_NAME,
+            model=MODEL_NAME,                   # "gpt-4.1-mini"
             instructions=system_prompt,
-            input=[msg],
-            text={
+            input=[msg],                       # list of one message
+            text={                             # Structured‑Outputs JSON schema
                 "format": {
-                    "type": "json_schema",
-                    "name": "test_result",
+                    "type":   "json_schema",
+                    "name":   "test_result",
                     "schema": TEST_RESULT_SCHEMA,
                     "strict": True,
                 }
@@ -236,28 +259,9 @@ def call_openai_api(system_prompt: str, user_parts: list):
             temperature=0,
         )
     except OpenAIError as e:
-        print(f"[Responses fallback] {e}")
-
-    # --- Fallback path: Chat Completions with function-calling ----------
-    tool_def = {
-        "name": "record_test_result",
-        "parameters": TEST_RESULT_SCHEMA,
-        "description": "Return the test verdict in JSON.",
-    }
-    chat_content = [
-        {"type": "text", "text": p["text"]} if p["type"] == "text" else p
-        for p in msg["content"]
-    ]
-    return client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": chat_content},
-        ],
-        tools=[tool_def],
-        tool_choice={"name": "record_test_result"},
-        temperature=0,
-    )
+        # Let the caller decide how to mark the test; we just log
+        print(f"[Responses API error] {e}")
+        return None
 
 
 def parse_api_response(resp):
