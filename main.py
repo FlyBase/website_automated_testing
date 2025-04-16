@@ -286,19 +286,6 @@ def parse_api_response(resp):
                 "explanation": f"JSON parse/validate error: {e}",
             }
 
-    # Chat fallback path
-    try:
-        tool_call = resp.choices[0].message.tool_calls[0]
-        data = json.loads(tool_call.function.arguments)
-        jsonschema.validate(data, TEST_RESULT_SCHEMA)
-        return data
-    except Exception as e:
-        return {
-            "result": "fail",
-            "failed_component": "api_response_parsing",
-            "explanation": f"Chat fallback parse error: {e}",
-        }
-
 ###############################################################################
 # SINGLE-TEST EXECUTION
 ###############################################################################
