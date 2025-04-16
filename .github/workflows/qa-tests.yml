@@ -9,8 +9,7 @@ permissions:
   pages: write        # Needed for deploy-pages in the target environment
   id-token: write     # Needed for deploy-pages OIDC in the target environment
   actions: read
-  # Add cache write permission if not implicitly covered
-  cache: write
+  # Removed invalid 'cache: write' permission
 
 concurrency:
   # Group workflow runs by workflow name and the branch/tag ref
