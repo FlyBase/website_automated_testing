@@ -1,10 +1,10 @@
 import os
 import sys
-import time # Keep time for explicit waits if needed
+import time
 import json
 import base64
 import yaml
-# import json # Duplicate import removed
+# import json # Duplicate
 import difflib
 import argparse
 from urllib.parse import urlparse, urldefrag, urljoin, urlunparse
@@ -16,8 +16,7 @@ from openai import OpenAI, OpenAIError
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 
 ###############################################################################
-# CONFIGURATION AND HELPERS (SYSTEM_PROMPT, ARTIFACTS_DIR, TIMEOUTS, etc.)
-# --- No changes needed in this section ---
+# CONFIGURATION AND HELPERS
 ###############################################################################
 SYSTEM_PROMPT_CONTENT = """
 You are a meticulous QA automation assistant evaluating web page tests for FlyBase.org, a Drosophila genomics database.
@@ -40,11 +39,11 @@ Output Requirements (Function Call):
 - Call the `record_test_result` function.
 - `result`: Must be "pass" or "fail".
 - `failed_component`: If failed, specify "text", "image", "both", "page load", or "action" based on the primary reason for failure identified from the evidence and prompt. If passed, use "none".
-- `explanation`: Provide a clear, concise explanation for your decision, directly referencing the prompt and the specific evidence (text or visual element) that led to the pass or fail status. E.g., "Test failed because the 'Something is broken' text was found in the Preview State Text." or "Test passed as the Preview State Screenshot shows blue boxes in the GO ribbon as required by the prompt." Avoid generic explanations. If it fails, we always want to know exactly the reason.
+- `explanation`: Provide a clear, concise explanation for your decision, directly referencing the prompt and the specific evidence (text or visual element) that led to the pass or fail status. E.g., "Test failed because the 'Something is broken' text was found in the Preview State Text." or "Test passed as the Preview State Screenshot shows blue boxes in the GO ribbon as required by the prompt." Avoid generic explanations.
 """
 ARTIFACTS_DIR = "/app/artifacts"
 DEFAULT_POST_LOAD_WAIT_S = 1.5
-CLICK_WAIT_TIMEOUT_S = 15 # Increased default action timeout slightly
+CLICK_WAIT_TIMEOUT_S = 15
 DEFAULT_WAIT_AFTER_CLICK_S = 1.0
 DEFAULT_WAIT_AFTER_INPUT_S = 0.5
 DEFAULT_WAIT_AFTER_KEY_S = 1.0
@@ -54,8 +53,10 @@ if not API_KEY:
     sys.exit("Please set the OPENAI_API_KEY environment variable...")
 
 client = OpenAI()
-MODEL_NAME = "gpt-4o-mini" # Use a recommended model, adjust if needed
+# <<< UPDATED MODEL NAME >>>
+MODEL_NAME = "gpt-4.1-mini"
 
+# Function schema remains the same definition
 FUNCTION_SCHEMA = [
         {
         "name": "record_test_result",
@@ -86,11 +87,10 @@ FUNCTION_SCHEMA = [
     }
 ]
 
-# --- wait_for_page_conditions_pw function remains the same ---
+# --- (wait_for_page_conditions_pw, perform_actions_pw, capture_page_text_pw, capture_page_screenshot_pw, encode_image_to_data_uri, load_yaml_config remain the same as the last version) ---
 def wait_for_page_conditions_pw(page, url_loaded, extra_wait_s=None):
     """Handles waiting for load state, fragment scroll, and applies a fixed wait using Playwright."""
     print(f"    Page '{url_loaded}' navigation initiated (Playwright handles load state).")
-
     scroll_wait = 1.0 # Seconds
     _base, fragment = urldefrag(url_loaded)
     if fragment:
@@ -105,7 +105,6 @@ def wait_for_page_conditions_pw(page, url_loaded, extra_wait_s=None):
              print(f"    Warning: Timed out finding/scrolling to element with ID '{fragment}'.")
         except Exception as scroll_err:
              print(f"    Warning: Error during scrolling attempt for '#{fragment}': {scroll_err}")
-
     wait_duration_s = DEFAULT_POST_LOAD_WAIT_S
     if extra_wait_s is not None:
         try:
@@ -119,106 +118,80 @@ def wait_for_page_conditions_pw(page, url_loaded, extra_wait_s=None):
             print(f"    Warning: Invalid non-numeric extra_wait_s value ('{extra_wait_s}'), using default: {wait_duration_s}s")
     else:
         print(f"    Applying default extra wait: {wait_duration_s}s")
-
     if wait_duration_s > 0:
         page.wait_for_timeout(wait_duration_s * 1000)
-
-# --- UPDATED perform_actions_pw function ---
 def perform_actions_pw(page, actions):
     """ Performs a list of actions defined in the YAML using Playwright, expecting direct selectors. """
-    if not actions:
-        return True
-
+    if not actions: return True
     print("    Performing actions before capture...")
     action_timeout_ms = CLICK_WAIT_TIMEOUT_S * 1000
-
     for i, action_def in enumerate(actions):
         action_type = action_def.get("action")
         selector = action_def.get("selector")
-
         default_wait_s = DEFAULT_WAIT_AFTER_CLICK_S
         if action_type == "input_text": default_wait_s = DEFAULT_WAIT_AFTER_INPUT_S
         if action_type == "press_key": default_wait_s = DEFAULT_WAIT_AFTER_KEY_S
         wait_after_s = action_def.get("wait_after_s", default_wait_s)
-
         action_desc = f"Action #{i+1} ({action_type}"
         if selector: action_desc += f": selector='{selector}'"
         action_desc += ")"
-
         if not action_type:
             print(f"    ERROR: Missing 'action' type in action definition #{i+1}.")
             return False
         if action_type in ["click", "input_text", "press_key"] and not selector:
              print(f"    ERROR: Missing 'selector' for required action '{action_type}' ({action_desc}).")
              return False
-
         locator = None
-        original_locator = None # Keep original locator for error messages if .first is used
+        original_locator = None
         if selector:
             try:
                 locator = page.locator(selector)
-                original_locator = locator # Store original
+                original_locator = locator
             except Exception as loc_err:
                 print(f"    ERROR: Invalid Playwright selector '{selector}' for {action_desc}: {loc_err}")
                 return False
-
-        # --- Action Execution ---
         try:
-            # <<< FIX: Handle potential multiple elements before scroll/action >>>
             if locator:
                  try:
-                     # Check count before interacting
-                     locator.wait_for(state="attached", timeout=action_timeout_ms / 2) # Wait for at least one to be attached
+                     locator.wait_for(state="attached", timeout=action_timeout_ms / 2)
                      count = locator.count()
                      if count > 1:
                          print(f"    WARNING: Selector '{selector}' resolved to {count} elements. Using the first element for action.")
-                         locator = locator.first # Reassign locator to the first element
+                         locator = locator.first
                      elif count == 0:
                           print(f"    ERROR: Selector '{selector}' resolved to 0 elements.")
-                          # Attempt one more explicit wait before failing
                           locator.wait_for(state="attached", timeout=action_timeout_ms / 2)
                           print(f"    INFO: Element '{selector}' appeared after waiting.")
-                          count = locator.count() # Re-check count
+                          count = locator.count()
                           if count > 1:
                                print(f"    WARNING: Selector '{selector}' now resolved to {count} elements after waiting. Using the first.")
                                locator = locator.first
                           elif count == 0:
                                print(f"    ERROR: Selector '{selector}' still resolved to 0 elements after waiting.")
-                               return False # Fail here
-
+                               return False
                  except PlaywrightTimeoutError:
                       print(f"    ERROR: Timed out waiting for element '{selector}' to be attached.")
                       return False
                  except Exception as count_err:
                       print(f"    ERROR: Unexpected error checking element count for '{selector}': {count_err}")
                       return False
-
-
-            # --- Preliminary Scroll --- uses the potentially modified locator (.first)
             if locator:
                 try:
                     print(f"      Scrolling element into view (if needed): {selector}")
                     locator.scroll_into_view_if_needed(timeout=action_timeout_ms / 2)
-                    page.wait_for_timeout(300) # Brief pause after scroll
-                # --- More specific handling for scroll timeout ---
+                    page.wait_for_timeout(300)
                 except PlaywrightTimeoutError as scroll_timeout_err:
-                    # Check if the original locator found multiple items - this might be the cause
                     if original_locator and original_locator.count() > 1:
                         print(f"    WARNING: Scrolling timed out for '{selector}', possibly due to multiple elements found. Attempting action on first element directly.")
-                        # Locator is already set to .first if count > 1, so we just continue
                     else:
                         print(f"    ERROR: Timed out scrolling element into view for {action_desc}.")
-                        return False # Fail if scroll times out for a unique/single element
+                        return False
                 except Exception as scroll_err:
                     print(f"    WARNING: Could not scroll element for {action_desc}, attempting action anyway: {scroll_err}")
-
-
-            # --- Perform Action --- uses the potentially modified locator (.first)
             if action_type == "click":
                 if not locator: return False
                 print(f"      Clicking element: {selector}")
                 locator.click(timeout=action_timeout_ms)
-
             elif action_type == "input_text":
                 if not locator: return False
                 text_to_input = action_def.get("text")
@@ -227,7 +200,6 @@ def perform_actions_pw(page, actions):
                     return False
                 print(f"      Filling input: {selector} with provided text")
                 locator.fill(str(text_to_input), timeout=action_timeout_ms)
-
             elif action_type == "press_key":
                 if not locator: return False
                 key_name = action_def.get("key")
@@ -236,19 +208,13 @@ def perform_actions_pw(page, actions):
                      return False
                 print(f"      Pressing key '{key_name}' in: {selector}")
                 locator.press(key_name, timeout=action_timeout_ms)
-
             else:
                 print(f"    WARNING: Unsupported action type '{action_type}' in {action_desc}. Skipping.")
                 continue
-
-            # Wait after successful action if specified
             if wait_after_s > 0:
                 print(f"      Waiting {wait_after_s}s after {action_type}...")
                 page.wait_for_timeout(wait_after_s * 1000)
-
-        # --- Error Handling ---
         except PlaywrightTimeoutError as action_timeout_err:
-            # Provide more context if the original selector found multiple elements
             err_suffix = ""
             if original_locator and original_locator.count() > 1:
                 err_suffix = f" (Note: Original selector resolved to {original_locator.count()} elements; action attempted on the first)"
@@ -257,20 +223,15 @@ def perform_actions_pw(page, actions):
             return False
         except PlaywrightError as e:
             error_message = str(e)
-            # Check if the error message indicates strict mode violation even after our .first logic
-            # This might happen if the element detaches or changes between the count check and the action
             if "strict mode violation" in error_message:
                  print(f"    ERROR: Strict mode violation during {action_desc} despite handling multiple elements. Element might have changed or detached.")
                  print(f"    Error Details: {e}")
-                 # Trying force click is less likely to help here if the element state is unstable
                  return False
-
             elif "interceptor" in error_message or "element is not visible" in error_message or "ailed visibility" in error_message:
                  print(f"    ERROR: Element interaction failed for {action_desc} (check visibility/state): {error_message}")
                  if action_type == 'click':
                      print("    Trying force click as fallback...")
                      try:
-                         # Use the potentially narrowed 'locator' (.first) for force click
                          locator.click(force=True, timeout=action_timeout_ms)
                          print("      Force click succeeded.")
                          if wait_after_s > 0: page.wait_for_timeout(wait_after_s * 1000)
@@ -286,12 +247,8 @@ def perform_actions_pw(page, actions):
             import traceback
             traceback.print_exc()
             return False
-
     print("    Finished performing actions.")
     return True
-
-
-# --- capture_page_text_pw function remains the same ---
 def capture_page_text_pw(page):
     """Captures the text content of the body element using Playwright."""
     try:
@@ -303,27 +260,21 @@ def capture_page_text_pw(page):
     except Exception as e:
         print(f"    Error capturing text from current page state: {e}")
         return f"Error capturing text: {e}"
-
-# --- capture_page_screenshot_pw function remains the same ---
 def capture_page_screenshot_pw(page, screenshot_filename_with_path):
-    """Captures a screenshot of the current viewport using Playwright.""" # Docstring updated
+    """Captures a screenshot of the current viewport using Playwright."""
     try:
         os.makedirs(os.path.dirname(screenshot_filename_with_path), exist_ok=True)
-        # <<< FIX: Removed full_page=True to capture viewport only >>>
-        page.screenshot(path=screenshot_filename_with_path)
-        print(f"    Saved screenshot artifact (viewport): {screenshot_filename_with_path}") # Log updated
+        page.screenshot(path=screenshot_filename_with_path) # Viewport only
+        print(f"    Saved screenshot artifact (viewport): {screenshot_filename_with_path}")
         with open(screenshot_filename_with_path, "rb") as img_file:
             return img_file.read()
     except Exception as e:
         print(f"    Error capturing or reading screenshot {screenshot_filename_with_path} (current state): {e}")
         return None
-
-# --- encode_image_to_data_uri, load_yaml_config, call_openai_api, parse_api_response remain the same ---
 def encode_image_to_data_uri(image_bytes, image_format="png"):
     if image_bytes is None: return ""
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
     return f"data:image/{image_format};base64,{image_b64}"
-
 def load_yaml_config(config_path):
     try:
         with open(config_path, 'r', encoding='utf-8') as file:
@@ -347,57 +298,149 @@ def load_yaml_config(config_path):
          print(f"Error reading configuration file {config_path}: {e}")
          sys.exit(1)
 
-def call_openai_api(messages):
-    current_time_str = f"Current time is {time.strftime('%A, %B %d, %Y at %I:%M:%S %p %Z', time.localtime())}."
-    # Hardcoding location based on previous context - adjust if needed
-    current_location_str = "Current location context: Halifax, Nova Scotia, Canada."
 
-    messages_with_context = messages[:1] + [
-        {"role": "user", "content": f"Context: {current_time_str} {current_location_str}"}
-    ] + messages[1:]
-    # print(f"Adding context to API call: {current_time_str} {current_location_str}") # Optional: Reduce verbosity
+# --- UPDATED call_openai_api function ---
+def call_openai_api(system_prompt, user_content_parts):
+    """
+    Calls the OpenAI API using the client.responses.create endpoint structure.
+    Leverages 'instructions' for system prompt and 'tools'/'tool_choice' for function calling.
+    """
+    # Transform user content parts to use "input_text" and "input_image" types
+    transformed_content = []
+    for part in user_content_parts:
+        if part.get("type") == "text":
+            transformed_content.append({"type": "input_text", "text": part.get("text", "")})
+        elif part.get("type") == "image_url":
+            # Pass image URL dict directly, assuming it contains url and potentially detail
+            image_data = {"type": "input_image", "image_url": part.get("image_url", {})}
+            transformed_content.append(image_data)
+        else:
+             print(f"Warning: Skipping unknown content part type during transformation: {part.get('type')}")
+
+    # Construct the 'input' payload - a list containing ONE user message dict
+    input_payload = [{"role": "user", "content": transformed_content}]
+
+    # Add context as initial text parts if desired (or could be in instructions)
+    current_time_str = f"Current time context: {time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+    # location_str = "Location context: Halifax, Nova Scotia, Canada." # Example
+    # input_payload[0]["content"].insert(0, {"type": "input_text", "text": location_str})
+    input_payload[0]["content"].insert(0, {"type": "input_text", "text": current_time_str})
+
+    print(f"Attempting API call with client.responses.create (model: {MODEL_NAME})...")
 
     try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME, messages=messages_with_context, functions=FUNCTION_SCHEMA,
-            function_call={"name": "record_test_result"}, temperature=0
+        # Using client.responses.create with parameters based on new documentation
+        response = client.responses.create(
+            model=MODEL_NAME,
+            instructions=system_prompt, # Pass system prompt here
+            input=input_payload,        # Pass the user message list here
+            tools=FUNCTION_SCHEMA,      # Pass function definitions via 'tools'
+            tool_choice={"type": "function", "function": {"name": "record_test_result"}}, # Force specific function
+            temperature=0               # Keep deterministic behavior
+            # Add other parameters like max_output_tokens if needed
         )
+        # print(f"DEBUG: Raw API Response: {response}") # Optional: for deep debugging
         return response
     except OpenAIError as e:
-        print(f"OpenAI API call error: {e}")
+        print(f"OpenAI API call error using responses.create: {e}")
         return None
     except Exception as e:
-        print(f"Unexpected error calling OpenAI API: {e}")
+        print(f"Unexpected error calling client.responses.create: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
-def parse_api_response(response):
-    result_status = "fail"; failed_component = "unknown"; explanation = "Could not parse API response or API call failed."
-    if not response: explanation = "No API response received (API call likely failed)."
-    else:
-        try:
-            if not response.choices: explanation = "API response 'choices' field missing/empty."
-            else:
-                message = response.choices[0].message
-                if not message: explanation = "Message field missing in first choice."
-                elif message.function_call:
-                    arguments_str = message.function_call.arguments
-                    if not arguments_str: explanation = "Function call arguments missing."
-                    else:
-                        try:
-                            result_json = json.loads(arguments_str)
-                            if "result" in result_json and "explanation" in result_json:
-                                result_status = result_json.get("result", "fail")
-                                failed_component = result_json.get("failed_component", "action" if result_status == "fail" else "none")
-                                explanation = result_json.get("explanation", "No explanation.")
-                                return {"result": result_status, "failed_component": failed_component, "explanation": explanation}
-                            else: explanation = f"Parsed JSON missing required fields ('result','explanation'). Parsed: {result_json}"
-                        except json.JSONDecodeError as e: explanation = f"Error parsing args JSON: {e}. Args: ```{arguments_str}```"
-                elif message.content: explanation = f"API returned content instead of function call: {message.content}"; failed_component = "api_response_format"
-                else: explanation = "API response lacked function call or content."; failed_component = "api_response_format"
-        except (AttributeError, IndexError, KeyError, TypeError) as e: explanation = f"Error accessing API response structure: {e}. Response: {response}"; failed_component = "api_response_parsing"
-        if result_status == 'fail': print(f"Warning: API Response issue: {explanation}")
-    return {"result": result_status, "failed_component": failed_component, "explanation": explanation}
 
+# --- UPDATED parse_api_response function ---
+def parse_api_response(response):
+    """
+    Parses the API response from client.responses.create,
+    specifically looking for the desired function call output.
+    """
+    result_status = "fail"; failed_component = "api_error"; explanation = "Could not parse API response or API call failed."
+    if not response:
+        explanation = "No API response received (API call likely failed)."
+        return {"result": result_status, "failed_component": failed_component, "explanation": explanation}
+
+    try:
+        # The 'output' is a list. Usually the assistant message with tool calls is the first item.
+        if hasattr(response, 'output') and response.output:
+            assistant_output = response.output[0] # Assuming the first output item is the assistant's message/action
+
+            # Check for tool_calls within the first output item
+            # The exact structure might vary, common patterns are checked.
+            tool_calls = None
+            if hasattr(assistant_output, 'tool_calls') and assistant_output.tool_calls:
+                tool_calls = assistant_output.tool_calls
+            elif hasattr(assistant_output, 'content') and isinstance(assistant_output.content, list):
+                 # Sometimes tool calls might be nested within content
+                 for content_item in assistant_output.content:
+                     if hasattr(content_item, 'type') and content_item.type == 'tool_calls' and hasattr(content_item, 'tool_calls'):
+                          tool_calls = content_item.tool_calls
+                          break
+                     # Or maybe directly as function call object? (Less common now)
+                     elif hasattr(content_item, 'type') and content_item.type == 'function_call' and content_item.function_call:
+                          # Adapt structure if needed, treat as single tool call
+                           tool_calls = [{"type": "function", "function": content_item.function_call}]
+                           break
+
+
+            if tool_calls:
+                # We expect only one tool call due to tool_choice forcing it
+                if len(tool_calls) > 0 and hasattr(tool_calls[0], 'function'):
+                    function_call = tool_calls[0].function
+                    if function_call.name == "record_test_result":
+                        arguments_str = function_call.arguments
+                        if arguments_str:
+                            try:
+                                result_json = json.loads(arguments_str)
+                                if "result" in result_json and "explanation" in result_json:
+                                    result_status = result_json.get("result", "fail")
+                                    failed_component = result_json.get("failed_component", "action" if result_status == "fail" else "none")
+                                    explanation = result_json.get("explanation", "No explanation.")
+                                    print("Successfully parsed function call from response.output.")
+                                    return {"result": result_status, "failed_component": failed_component, "explanation": explanation}
+                                else:
+                                    explanation = f"Parsed function call JSON missing required fields ('result','explanation'). Parsed: {result_json}"
+                            except json.JSONDecodeError as e:
+                                explanation = f"Error parsing function call args JSON: {e}. Args: ```{arguments_str}```"
+                        else:
+                             explanation = "Function call arguments missing in response.output."
+                    else:
+                         explanation = f"Expected function call 'record_test_result' but received '{function_call.name}'."
+                else:
+                     explanation = "Tool calls found, but structure is unexpected or missing function details."
+            # Check for direct text output if no function call was found
+            elif hasattr(assistant_output, 'content') and isinstance(assistant_output.content, list) and \
+                 hasattr(assistant_output.content[0], 'type') and assistant_output.content[0].type == 'output_text':
+                 output_text = assistant_output.content[0].text
+                 explanation = f"API call returned direct text output (function call likely failed or was not generated): {output_text}"
+                 failed_component = "api_function_call_failed"
+            # Check for explicit refusal message
+            elif hasattr(assistant_output, 'content') and isinstance(assistant_output.content, list) and \
+                 hasattr(assistant_output.content[0], 'type') and assistant_output.content[0].type == 'refusal':
+                 refusal_text = assistant_output.content[0].refusal
+                 explanation = f"API refused the request: {refusal_text}"
+                 failed_component = "api_refusal"
+            else:
+                 explanation = f"Could not find expected tool call or text/refusal output in response.output[0]. Content: {getattr(assistant_output, 'content', 'N/A')}"
+                 failed_component = "api_response_parsing"
+        else:
+            # Check for top-level output_text (SDK convenience property)
+            if hasattr(response, 'output_text') and response.output_text:
+                 explanation = f"API call returned direct text output via SDK property (function call likely failed): {response.output_text}"
+                 failed_component = "api_function_call_failed"
+            else:
+                 explanation = f"API response object lacks 'output' list or 'output_text'. Response: {response}"
+                 failed_component = "api_response_parsing"
+
+    except (AttributeError, IndexError, KeyError, TypeError) as e:
+        explanation = f"Error accessing API response structure: {e}. Response: {response}"
+        failed_component = "api_response_parsing"
+
+    # If we reached here, parsing failed
+    print(f"Warning: API Response Parsing Failed: {explanation}")
+    return {"result": "fail", "failed_component": failed_component, "explanation": explanation}
 
 # --- run_test_pw function ---
 def run_test_pw(page, test_def, comparison_url):
@@ -413,11 +456,11 @@ def run_test_pw(page, test_def, comparison_url):
     url_from_yaml = test_def.get("url")
     compare_to_production = test_def.get("compare_to_production", False)
     check_types = test_def.get("check_types", [])
-    if check_types is None: check_types = [] # Handle null check_types
+    if check_types is None: check_types = []
     ticket = test_def.get("ticket", "")
     actions_to_perform = test_def.get("actions_before_capture", [])
 
-    # <<< FIX: Corrected URL comparison logic >>>
+    # Corrected URL comparison logic
     if comparison_url.startswith("[https://flybase.org](https://flybase.org)"):
         prod_label = "Production Screenshot"
         prod_text_label = "Production Text"
@@ -432,18 +475,17 @@ def run_test_pw(page, test_def, comparison_url):
         prod_text_label = "Production Text"
         prod_suffix = "_prod"
 
-    # Pre-checks
     if not enabled:
+        # ... (skip logic remains same) ...
         print(f"Skipping disabled test: {test_name}")
         return {"test_name": test_name, "result": "skipped", "failed_component": "none", "explanation": "Test is disabled.", "prompt": prompt}
     if not url_from_yaml:
+        # ... (skip logic remains same) ...
         print(f"Skipping test '{test_name}': Missing required 'url' field in YAML.")
         return {"test_name": test_name, "result": "skipped", "failed_component": "none", "explanation": "Missing 'url'.", "prompt": prompt}
 
     preview_url = url_from_yaml
     prod_url = None
-
-    # URL Setup
     if compare_to_production:
         try:
             parsed_target = urlparse(preview_url)
@@ -452,11 +494,12 @@ def run_test_pw(page, test_def, comparison_url):
             base_comparison_url = comparison_url.rstrip('/') + '/'
             prod_url = urljoin(base_comparison_url, prod_path_query_fragment.lstrip('/'))
         except Exception as e:
-            print(f"Warning: Could not construct production URL for comparison from {preview_url} and {comparison_url}: {e}")
+            print(f"Warning: Could not construct production URL: {e}")
             compare_to_production = False
             prod_url = None
 
     print(f"\n=== Running Test: {test_name} ===")
+    # ... (rest of the setup print statements) ...
     print(f"Preview URL: {preview_url}")
     effective_wait = extra_wait_s if extra_wait_s is not None else DEFAULT_POST_LOAD_WAIT_S
     print(f"Effective Initial Post-Load Wait: {effective_wait}s")
@@ -465,30 +508,32 @@ def run_test_pw(page, test_def, comparison_url):
         print(f"Comparing against Base URL ({prod_base_label}): {prod_url}")
     else:
         print("Running as single page test (no production comparison).")
-        compare_to_production = False
+        compare_to_production = False # Ensure it's false if prod_url failed
 
     if actions_to_perform:
         print(f"Actions to perform before capture: {len(actions_to_perform)}")
 
-    # Prepare for OpenAI API Call
-    messages = [{"role": "system", "content": SYSTEM_PROMPT_CONTENT}]
+    # --- Prepare USER message content list ---
     user_content_parts = []
     prompt_display = f"Test: {test_name}\nPrompt: {prompt}"
     if ticket: prompt_display += f"\nReference Ticket: {ticket}"
-    user_content_parts.append({"type": "text", "text": prompt_display})
+    user_content_parts.append({"type": "text", "text": prompt_display}) # Type will be transformed later
 
     action_failure = False
     action_failure_location = None
     try:
+        # --- (Navigation, actions, capture logic remains the same, appending to user_content_parts) ---
+        # --- It uses perform_actions_pw, capture_page_text_pw, capture_page_screenshot_pw ---
+        # --- Importantly, it adds {"detail": "high"} to image_url dicts ---
         if compare_to_production and prod_url: # Comparison Test
-            prod_base_label = prod_label.split()[0]
+            prod_base_label = prod_label.split()[0] # "Production" or "Staging"
             user_content_parts.append({"type": "text", "text": f"\n--- Comparing {prod_base_label} vs Preview ---"})
             user_content_parts.append({"type": "text", "text": f"{prod_base_label} URL: {prod_url}"})
             user_content_parts.append({"type": "text", "text": f"Preview URL: {preview_url}"})
 
             # Production Capture
             print(f"  -- Processing {prod_base_label} URL --")
-            page.goto(prod_url, wait_until="load")
+            page.goto(prod_url, wait_until="load") # Rely on context default timeout
             wait_for_page_conditions_pw(page, prod_url, extra_wait_s)
             if actions_to_perform:
                  if not perform_actions_pw(page, actions_to_perform):
@@ -511,7 +556,10 @@ def run_test_pw(page, test_def, comparison_url):
                 prod_img_uri = encode_image_to_data_uri(prod_screenshot_bytes)
                 if prod_img_uri:
                     user_content_parts.append({"type": "text", "text": f"\n{prod_label}:"})
-                    user_content_parts.append({"type": "image_url", "image_url": {"url": prod_img_uri}})
+                    user_content_parts.append({
+                        "type": "image_url",
+                        "image_url": { "url": prod_img_uri, "detail": "high" } # Using detail: high
+                    })
                 else: print(f"    Warning: Failed to get {prod_base_label} screenshot")
 
             # Preview Capture (only if prod actions didn't fail)
@@ -540,7 +588,10 @@ def run_test_pw(page, test_def, comparison_url):
                     preview_img_uri = encode_image_to_data_uri(preview_screenshot_bytes)
                     if preview_img_uri:
                         user_content_parts.append({"type": "text", "text": "\nPreview State Screenshot:"})
-                        user_content_parts.append({"type": "image_url", "image_url": {"url": preview_img_uri}})
+                        user_content_parts.append({
+                            "type": "image_url",
+                            "image_url": { "url": preview_img_uri, "detail": "high" } # Using detail: high
+                        })
                     else: print(f"    Warning: Failed to get Preview screenshot")
             else: # Actions failed on Production/Staging
                 print(f"    Skipping Preview capture because action failed on {action_failure_location}.")
@@ -574,7 +625,10 @@ def run_test_pw(page, test_def, comparison_url):
                 preview_img_uri = encode_image_to_data_uri(preview_screenshot_bytes)
                 if preview_img_uri:
                     user_content_parts.append({"type": "text", "text": "\nPreview State Screenshot:"})
-                    user_content_parts.append({"type": "image_url", "image_url": {"url": preview_img_uri}})
+                    user_content_parts.append({
+                         "type": "image_url",
+                         "image_url": { "url": preview_img_uri, "detail": "high" } # Using detail: high
+                     })
                 else:
                     print(f"    Warning: Failed to get screenshot for single page test {test_name}")
 
@@ -582,43 +636,42 @@ def run_test_pw(page, test_def, comparison_url):
         if action_failure:
              user_content_parts.append({"type": "text", "text": f"\n*** NOTE: An action failed on {action_failure_location}. The captured state might be incomplete or inaccurate. ***"})
 
-    # Error handling for page load/action phase
     except PlaywrightTimeoutError as page_err:
+        # ... (Error handling remains same) ...
         error_msg = f"Timeout Error during page load or action for test '{test_name}'. URL(s): {preview_url}";
         if prod_url: error_msg += f", {prod_url}"
         error_msg += f". Error: {page_err}"; print(f"    ERROR: {error_msg}")
-        try: # Attempt failure screenshot
+        try:
             if page and not page.is_closed():
                  fail_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_FAILURE_capture.png")
                  capture_page_screenshot_pw(page, fail_screenshot_path)
         except Exception as screen_err: print(f"    Could not take failure screenshot: {screen_err}")
         return {"test_name": test_name, "result": "fail", "failed_component": "page load/action", "explanation": error_msg, "prompt": prompt}
     except Exception as page_err:
+        # ... (Error handling remains same) ...
         error_msg = f"Unexpected Error during page load, action, or data capture for test '{test_name}'. URL(s): {preview_url}";
         if prod_url: error_msg += f", {prod_url}"
         error_msg += f". Error: {type(page_err).__name__} - {page_err}"; print(f"    ERROR: {error_msg}")
         import traceback; traceback.print_exc()
-        try: # Attempt failure screenshot
+        try:
              if page and not page.is_closed():
                  fail_screenshot_path = os.path.join(ARTIFACTS_DIR, f"{safe_test_name}_FAILURE_capture.png")
                  capture_page_screenshot_pw(page, fail_screenshot_path)
         except Exception as screen_err: print(f"    Could not take failure screenshot: {screen_err}")
         return {"test_name": test_name, "result": "fail", "failed_component": "page load/action/capture", "explanation": error_msg, "prompt": prompt}
 
-    # Finalize and Call OpenAI API
+    # --- Finalize and Call OpenAI API ---
     if not check_types:
+        # ... (Skip logic remains same) ...
         print(f"Skipping OpenAI analysis for test '{test_name}' as no check_types were specified.")
         final_result = "pass" if not action_failure else "fail"
         final_component = "none" if not action_failure else "action"
         final_explanation = "No checks performed." if not action_failure else f"Action failed on {action_failure_location}. No checks performed."
         return {"test_name": test_name, "result": final_result, "failed_component": final_component, "explanation": final_explanation, "prompt": prompt}
 
-    # Check if any data was actually captured if checks were requested
-    has_text_content = any("```" in part.get("text", "") for part in user_content_parts if isinstance(part, dict) and part.get("type") == "text")
+    # Check capture success
+    has_text_content = any("```" in part.get("text", "") for part in user_content_parts if isinstance(part, dict) and part.get("type") == "text" and "```" in part["text"])
     has_image_content = any(part.get("type") == "image_url" for part in user_content_parts if isinstance(part, dict))
-
-    # Handle cases where capture failed before API call (but action didn't fail)
-    # This logic might need refinement based on desired behavior when capture fails.
     should_fail_due_to_capture = False
     capture_fail_reason = ""
     if "text" in check_types and not has_text_content and not action_failure:
@@ -632,28 +685,19 @@ def run_test_pw(page, test_def, comparison_url):
          print(f"Error: Capture failure for test '{test_name}'. Reason: {capture_fail_reason.strip()}")
          return {"test_name": test_name, "result": "fail", "failed_component": "capture", "explanation": f"Capture failure: {capture_fail_reason.strip()}", "prompt": prompt}
 
-
-    messages.append({"role": "user", "content": user_content_parts})
-    content_display_str = str(user_content_parts)
-    # Reduced verbosity of LLM call log
-    # print("Message content snippet for LLM call:", content_display_str[:300] + ("..." if len(content_display_str) > 300 else ""))
-
-    response = call_openai_api(messages)
-    result_data = parse_api_response(response)
+    # <<< Call updated call_openai_api function >>>
+    # Pass system prompt and the user content parts separately
+    response = call_openai_api(SYSTEM_PROMPT_CONTENT, user_content_parts)
+    result_data = parse_api_response(response) # Use the updated parser
 
     # Override API result if action failed
     if action_failure:
-        # Even if API somehow passed based on incomplete data, action failure takes precedence
-        # if result_data.get("result") == "pass": # Original condition - might be too strict
-        print(f"Overriding API result due to action failure on {action_failure_location}.")
-        result_data["result"] = "fail"
-        result_data["failed_component"] = "action"
-        # Keep original explanation if API also failed, otherwise provide action fail reason
-        if result_data.get("explanation", "").startswith("Action failed"):
-             pass # Keep the more specific action failure explanation
-        else:
-             original_api_expl = result_data.get('explanation', 'No original API explanation.')
-             result_data["explanation"] = f"Action failed on {action_failure_location}. Original API Explanation: {original_api_expl}"
+        if result_data.get("result") != "fail" or result_data.get("failed_component") != "action":
+            print(f"Overriding API result due to action failure on {action_failure_location}.")
+            result_data["result"] = "fail"
+            result_data["failed_component"] = "action"
+            original_api_expl = result_data.get('explanation', 'No original API explanation.') if result_data.get("result") != "fail" else "(API also indicated failure)"
+            result_data["explanation"] = f"Action failed on {action_failure_location}. Original API Explanation: {original_api_expl}"
 
 
     return {"test_name": test_name, "prompt": prompt, **result_data}
@@ -679,17 +723,13 @@ def main(config_path):
             context = browser.new_context(
                 viewport={'width': 1280, 'height': 1024},
                 locale='en-US',
-                # ignore_https_errors=True # Consider for staging/dev envs if needed
             )
-
             waf_secret = os.getenv("WAF_SECRET_HEADER")
             if waf_secret:
                  print("Setting WAF secret header...")
                  context.set_extra_http_headers({"x-waf-secret": waf_secret})
-
-            context.set_default_navigation_timeout(60000) # 60 seconds
-            context.set_default_timeout(30000) # 30 seconds for actions
-
+            context.set_default_navigation_timeout(60000)
+            context.set_default_timeout(30000)
             page = context.new_page()
             print("Playwright browser page created.")
 
@@ -742,7 +782,6 @@ def main(config_path):
 
     if final_failed > 0:
         print("\n--- FAILED TEST DETAILS ---")
-        # Sort failed tests alphabetically by name for consistency
         failed_tests = sorted([r for r in all_results if r.get("result") == "fail"], key=lambda x: x.get('test_name', ''))
         for res in failed_tests:
                 print(f"  Test FAILED: {res.get('test_name')}")
