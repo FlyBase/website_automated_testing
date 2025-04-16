@@ -1,0 +1,17 @@
+{
+  "name": "website_automated_testing",
+  "version": "1.0.0",
+  "description": "This repository contains a QA testing suite designed to automate the testing of the FlyBase preview website. The suite uses Selenium for browser automation and OpenAI's GPT API for advanced text and image analysis. The configuration for tests is managed through a YAML file used to define and customize test cases.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.51.1",
+    "@types/node": "^22.14.1"
+  }
+}
