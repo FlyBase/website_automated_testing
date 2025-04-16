@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-qa_vision_runner.py – End‑to‑end Playwright + OpenAI vision test runner
-Updated April 2025 for the *Responses* API (vision + Structured Outputs)
+qa_vision_runner.py - End-to-end Playwright + OpenAI vision test runner
+Updated April 2025 for the *Responses* API (vision + Structured Outputs)
 
 FlyBase QA team
 """
@@ -30,30 +30,38 @@ from playwright.sync_api import (
 )
 
 ###############################################################################
-# GLOBAL CONSTANTS
+# GLOBAL CONSTANTS
 ###############################################################################
 SYSTEM_PROMPT_CONTENT = """
-You are a meticulous QA automation assistant evaluating web page tests for FlyBase.org, a Drosophila genomics database.
-Your task is to determine if a test passes or fails based on a user prompt and the provided evidence (text content and/or screenshots).
+You are a meticulous QA-automation assistant for FlyBase .org, a Drosophila genomics database.
 
-You will receive:
-1.  **User Prompt:** Describes the specific condition to verify (e.g., check for errors, verify content presence/absence, check visual elements, compare states). **This is the primary requirement.**
-2.  **Text Content:** Provided in ``` code blocks, potentially labeled "Production Text", "Preview State Text" (for comparisons), or "Preview Page Text" (for single page tests). Use this to verify textual requirements from the prompt.
-3.  **Screenshots:** Provided as images, potentially labeled "Production Screenshot" and "Preview State Screenshot". Use these to verify visual requirements from the prompt (layout, specific elements, colors, absence of errors). Note: Screenshot capture might occasionally fail; proceed with text evaluation if possible.
+**Task**
+After evaluating the evidence for a single web-page test, return a JSON object that adheres *exactly* to the provided `test_result` schema (result / failed_component / explanation).  
+• Produce **only** the JSON - no markdown, no extra keys, no commentary.  
+• If the model refuses, return the refusal via the Structured-Outputs mechanism.
 
-Evaluation Guidelines:
-- **Focus on the User Prompt:** Base your pass/fail decision strictly on whether the evidence meets the criteria defined in the prompt.
-- **Comparison Tests (Production vs. Preview):** Carefully compare the Production and Preview text/screenshots. Look for differences relevant to the prompt's goal. Minor rendering variations (e.g., slight spacing, anti-aliasing) are usually acceptable unless the prompt specifically targets them. A failure occurs if Preview shows an incorrect state (e.g., an error, missing data, wrong visual) compared to Production OR compared to the explicit expectation in the prompt.
-- **Single Page Tests:** Evaluate the provided "Preview Page Text" and/or "Preview State Screenshot" directly against the criteria in the user prompt.
-- **Text Checks:** Look for specific error messages, expected text strings, or the absence of specific text as required by the prompt.
-- **Image Checks:** Visually inspect screenshots for layout correctness, presence/absence of UI elements, correct data display (e.g., colored boxes as described), error messages, etc., according to the prompt.
-- **Action Failures:** If the user provides a note like "*** NOTE: An action failed before capture... ***", consider this when evaluating the state. The state might be incorrect due to the failed action. Evaluate if the *resulting* state (even if incomplete) meets the prompt's criteria or if the action failure itself constitutes a test failure based on the prompt.
+**You will receive**
+1. **User Prompt** - the condition to verify (primary requirement).  
+2. **Text Content** - code-fenced blocks labelled “Production Text”, “Preview State Text”, or “Preview Page Text”.  
+3. **Screenshots** - images labelled “Production Screenshot” or “Preview State Screenshot”.  
+   Occasionally screenshots may be missing; rely on text when needed.
 
-Output Requirements (Function Call):
-- Call the `record_test_result` function.
-- `result`: Must be "pass" or "fail".
-- `failed_component`: If failed, specify "text", "image", "both", "page load", or "action" based on the primary reason for failure identified from the evidence and prompt. If passed, use "none".
-- `explanation`: Provide a clear, concise explanation for your decision, directly referencing the prompt and the specific evidence (text or visual element) that led to the pass or fail status. E.g., "Test failed because the 'Something is broken' text was found in the Preview State Text." or "Test passed as the Preview State Screenshot shows blue boxes in the GO ribbon as required by the prompt." Avoid generic explanations.
+**Evaluation guidelines**
+• Focus strictly on the User Prompt to decide pass / fail.  
+• If both Production and Preview assets are present, compare them; minor rendering differences are acceptable unless the prompt targets them.  
+• Flag failures for missing data, error messages, wrong visual states, or explicit “Something is broken” pages.  
+• If screenshots are present, check visual layout, colours, and absence of errors.  
+• If an action failed note appears (`*** NOTE: An action failed … ***`), consider whether that incomplete state should fail the test.  
+• Choose `failed_component` as “text”, “image”, “both”, “page load”, “action”, “capture”, or “none” (for passes).
+
+**Output format (strict)**
+```json
+{
+  "result":           "pass" | "fail",
+  "failed_component": "text" | "image" | "both" | "none" | "page load" | "action" | "capture",
+  "explanation":      "<concise justification referencing specific evidence>"
+}
+```
 """
 
 ARTIFACTS_DIR = "/app/artifacts"
@@ -68,10 +76,10 @@ if not API_KEY:
     sys.exit("Please set the OPENAI_API_KEY environment variable.")
 
 client = OpenAI()
-MODEL_NAME = "gpt-4.1-mini"      # vision‑capable Responses model
+MODEL_NAME = "gpt-4.1-mini"      # vision-capable Responses model
 
 ###############################################################################
-# STRUCTURED‑OUTPUTS JSON SCHEMA
+# STRUCTURED-OUTPUTS JSON SCHEMA
 ###############################################################################
 TEST_RESULT_SCHEMA = {
     "type": "object",
@@ -94,10 +102,10 @@ TEST_RESULT_SCHEMA = {
 }
 
 ###############################################################################
-# PLAYWRIGHT HELPERS
+# PLAYWRIGHT HELPERS
 ###############################################################################
 def wait_for_page_conditions_pw(page, url_loaded: str, extra_wait_s=None):
-    """Wait for load‑state, optional fragment scroll, then fixed delay."""
+    """Wait for load-state, optional fragment scroll, then fixed delay."""
     _base, fragment = urldefrag(url_loaded)
     if fragment:
         try:
@@ -106,7 +114,7 @@ def wait_for_page_conditions_pw(page, url_loaded: str, extra_wait_s=None):
             loc.scroll_into_view_if_needed(timeout=5000)
             page.wait_for_timeout(1000)
         except PlaywrightTimeoutError:
-            print(f"    Fragment '#{fragment}' not found – continuing.")
+            print(f"    Fragment '#{fragment}' not found - continuing.")
     delay = (
         float(extra_wait_s)
         if isinstance(extra_wait_s, (int, float)) and extra_wait_s >= 0
@@ -141,7 +149,7 @@ def perform_actions_pw(page, actions: list) -> bool:
             elif a_type == "press_key":
                 locator.press(act.get("key", "Enter"), timeout=timeout_ms)
             else:
-                print(f"    Unsupported action '{a_type}' – skipped.")
+                print(f"    Unsupported action '{a_type}' - skipped.")
                 continue
             pause = float(act.get("wait_after_s", DEFAULT_WAIT_AFTER_CLICK_S))
             if pause > 0:
@@ -186,7 +194,7 @@ def load_yaml_config(cfg_path):
         sys.exit(f"Error loading YAML config {cfg_path}: {e}")
 
 ###############################################################################
-# OPENAI COMMUNICATION  (Responses + Chat fallback)
+# OPENAI COMMUNICATION  (Responses + Chat fallback)
 ###############################################################################
 def _transform_parts(parts):
     out = []
@@ -230,7 +238,7 @@ def call_openai_api(system_prompt: str, user_parts: list):
     except OpenAIError as e:
         print(f"[Responses fallback] {e}")
 
-    # --- Fallback path: Chat Completions with function‑calling ----------
+    # --- Fallback path: Chat Completions with function-calling ----------
     tool_def = {
         "name": "record_test_result",
         "parameters": TEST_RESULT_SCHEMA,
@@ -288,7 +296,7 @@ def parse_api_response(resp):
         }
 
 ###############################################################################
-# SINGLE‑TEST EXECUTION
+# SINGLE-TEST EXECUTION
 ###############################################################################
 def run_test_pw(page, test_def: dict, comparison_url: str):
     """Run one test definition and return unified result dict."""
@@ -377,8 +385,8 @@ def run_test_pw(page, test_def: dict, comparison_url: str):
                 action_where = "Production"
             _capture("_prod")
 
-        # -------------------- Preview / single‑page ----------------------
-        print(f"\n=== {name} – Preview ===")
+        # -------------------- Preview / single-page ----------------------
+        print(f"\n=== {name} - Preview ===")
         page.goto(url_preview, wait_until="load")
         wait_for_page_conditions_pw(page, url_preview, extra_wait_s)
         if actions and not perform_actions_pw(page, actions):
@@ -496,14 +504,14 @@ def main(cfg_path: str):
     failed = sum(1 for r in results if r["result"] == "fail")
     skipped = sum(1 for r in results if r["result"] == "skipped")
     print("\n--- SUMMARY ---")
-    print(f"PASS  {passed}")
-    print(f"FAIL  {failed}")
-    print(f"SKIP  {skipped}")
+    print(f"PASS  {passed}")
+    print(f"FAIL  {failed}")
+    print(f"SKIP  {skipped}")
     if failed:
         print("\nFailed tests:")
         for r in results:
             if r["result"] == "fail":
-                print(f"  ▸ {r['test_name']} – {r['failed_component']}")
+                print(f"  ▸ {r['test_name']} - {r['failed_component']}")
                 print(f"    {r['explanation']}\n")
 
 
