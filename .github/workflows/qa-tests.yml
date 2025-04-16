@@ -9,6 +9,8 @@ permissions:
   pages: write        # Needed for deploy-pages in the target environment
   id-token: write     # Needed for deploy-pages OIDC in the target environment
   actions: read
+  # Add cache write permission if not implicitly covered
+  cache: write
 
 concurrency:
   # Group workflow runs by workflow name and the branch/tag ref
@@ -25,8 +27,28 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: docker build -t my-qa-image .
+      # --- Docker Build Steps Updated for Caching ---
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        id: buildx # Give the setup step an ID if needed, though not strictly necessary here
+
+      - name: Build and cache Docker image
+        uses: docker/build-push-action@v6
+        id: docker_build # Give the build step an ID if needed
+        with:
+          context: .                   # Build context is the current directory
+          # Do not push the image to a registry
+          push: false
+          # Load the image into the runner's docker daemon so the next step can use it
+          load: true
+          # Tag the image for local use in the next step
+          tags: my-qa-image:latest
+          # Enable caching using the GitHub Actions cache backend
+          cache-from: type=gha
+          # Export cache layers to GitHub Actions cache for future runs
+          # mode=max ensures intermediate layers are cached for better reuse
+          cache-to: type=gha,mode=max
+      # --- End of Updated Docker Build Steps ---
 
       - name: Run QA tests in Docker
         env:
@@ -34,43 +56,51 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           WAF_SECRET_HEADER: ${{ secrets.AWS_WAF_SECRET }}
         run: |
+          echo "Creating artifacts directory on host..."
           mkdir -p artifacts
+          echo "Running Docker container..."
           docker run --rm \
             -e OPENAI_API_KEY="$OPENAI_API_KEY" \
             -e WAF_SECRET_HEADER="$WAF_SECRET_HEADER" \
             -v ${{ github.workspace }}/artifacts:/app/artifacts \
-            my-qa-image
+            my-qa-image:latest # Ensure the tag matches the build step
+          echo "Docker run finished."
 
-      - name: Install Jinja2
+      - name: Install Jinja2 for Report Generation
         run: pip install jinja2
 
-      - name: Make docs folder structure
+      - name: Make docs folder structure for Report
         run: mkdir -p docs/artifacts
 
       - name: Copy test artifacts into docs
         # Correctly copy CONTENTS of artifacts into docs/artifacts
-        run: cp -R artifacts/* docs/artifacts/
+        run: |
+          echo "Copying artifacts to docs directory..."
+          # Use 'cp -a' to preserve attributes, or 'cp -R' is fine too
+          # Add '|| true' in case artifacts dir is empty after a run to avoid error
+          cp -R artifacts/* docs/artifacts/ || true
+          echo "Artifacts copied."
+
 
       - name: Generate HTML report
+        # Make sure the script name matches your repository
         run: python scripts/generate_html_report.py
 
       - name: Configure Pages
-        # This action prepares the environment for Pages, but doesn't deploy
+        # This action prepares the environment for Pages deployment
         uses: actions/configure-pages@v5
 
       - name: Upload artifact for Pages
         # Use the dedicated action for Pages artifacts
         uses: actions/upload-pages-artifact@v3
         with:
-          # Path to the directory containing index.html and artifacts/ sub-dir
+          # Path to the directory containing index.html and the artifacts/ sub-directory
           path: docs
 
   deploy:
     needs: build-and-test
     runs-on: ubuntu-latest
     # Specify the deployment environment here ALSO.
-    # This ensures deploy-pages runs in the context of 'main'
-    # and respects any protection rules associated with it.
     environment:
       name: main
       url: ${{ steps.deployment.outputs.page_url }} # Output the deployment URL
@@ -82,4 +112,3 @@ jobs:
         id: deployment # Add an ID to reference outputs like the URL
         uses: actions/deploy-pages@v4
         # No 'artifact_name' needed; it uses the artifact from upload-pages-artifact
-        # It will deploy to the Pages site configured for the 'main' environment.
