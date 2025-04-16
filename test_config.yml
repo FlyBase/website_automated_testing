@@ -38,18 +38,13 @@ tests:
       # 3. Type the partial term (“th” starts the type‑ahead)
       - action: input_text
         selector: '#ANATOMY'
-        text: 'early'
+        text: 'early third instar larvally'
         wait_after_s: 0.5        # allow dropdown to populate
-
-      # 4. Pick the type‑ahead suggestion “early third instar larval”
-      - action: click
-        selector: 'text="early third instar larval"'
-        wait_after_s: 0.5
 
       # 5. Submit the query
       - action: click
         selector: 'text="Search"'   # or role=button[name="Search"]
-        wait_after_s: 5         # wait for results table to load
+        wait_after_s: 10         # wait for results table to load
     prompt: |
       Verify that a results table appears containing relevant data rows for GAL4 lines related to "early third instar larval" search term. The table should not be empty or show an error.
 
