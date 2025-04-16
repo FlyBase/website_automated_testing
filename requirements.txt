@@ -2,3 +2,4 @@ playwright
 openai
 PyYAML
 Jinja2
+jsonschema
