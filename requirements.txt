@@ -1,3 +1,4 @@
-selenium
+playwright
 openai
 PyYAML
+Jinja2
