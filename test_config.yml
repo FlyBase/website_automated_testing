@@ -25,22 +25,33 @@ tests:
       - picture
     compare_to_production: true
     actions_before_capture:
+      # 1. Open the “GAL4 etc” quick‑search tab
       - action: click
         selector: 'text="GAL4 etc"'
-        wait_after_s: 3
+        wait_after_s: 2         # give the tab AJAX some time
 
+      # 2. Focus the Anatomy textbox
+      - action: click
+        selector: '#ANATOMY'     # same element the recorder found
+        wait_after_s: 0.2
+
+      # 3. Type the partial term (“th” starts the type‑ahead)
       - action: input_text
-        # Using CSS ID selector - the code now handles multiple matches by using .first
-        selector: "#ANATOMY"
-        text: "abdominal segment 11"
+        selector: '#ANATOMY'
+        text: 'early'
+        wait_after_s: 0.5        # allow dropdown to populate
+
+      # 4. Pick the type‑ahead suggestion “early third instar larval”
+      - action: click
+        selector: 'text="early third instar larval"'
         wait_after_s: 0.5
 
-      - action: press_key
-        selector: "#ANATOMY"
-        key: "Enter"
-        wait_after_s: 5
+      # 5. Submit the query
+      - action: click
+        selector: 'text="Search"'   # or role=button[name="Search"]
+        wait_after_s: 5         # wait for results table to load
     prompt: |
-      Verify that after clicking the 'GAL4 etc' tab, entering 'abdominal segment 11' into the Anatomy search box, and pressing Enter, a results table appears containing relevant data rows (e.g., GAL4 lines related to that anatomy term). The table should not be empty or show an error.
+      Verify that a results table appears containing relevant data rows for GAL4 lines related to "early third instar larval" search term. The table should not be empty or show an error.
 
   - name: "Function/Summaries Merged in Gene Group Reports"
     enabled: false
