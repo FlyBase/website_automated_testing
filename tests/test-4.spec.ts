@@ -8,4 +8,5 @@ test('test', async ({ page }) => {
   await page.getByRole('textbox', { name: 'e.g., third instar larval' }).fill('th');
   await page.getByText('early third instar larval').click();
   await page.getByRole('button', { name: 'Search' }).click();
+  await page.waitForLoadState('networkidle');   // ensure page is fully rendered
 });

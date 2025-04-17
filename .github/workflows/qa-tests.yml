@@ -2,7 +2,8 @@ name: QA Tests and Publish
 
 on:
   push:
-  workflow_dispatch:
+    branches: [ main ]       # ← run only when main is updated
+  workflow_dispatch:         # ← still allow manual trigger from the UI
 
 permissions:
   contents: read
