@@ -88,7 +88,7 @@ tests:
         selector: "a.js-trigger-open[data-toggle-target='expression_sub']"
         wait_after_s: 10
     prompt: |
-      Compare the colors of the squares in the "Production" screenshot above "adult cell types - Fly Cell Atlas scRNA-seq" with the colors of the squares in the "Preview" screenshot. They should be the same shades of color.
+      Compare the colors of the squares in the "Production" screenshot above "adult cell types - Fly Cell Atlas scRNA-seq" with the colors of the corresponding squares in the "Preview" screenshot. They should be similar shades of color.
 
   - name: "FlyBase Anatomy Expression Ribbon Data Not Regenerated"
     enabled: true
