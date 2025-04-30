@@ -30,15 +30,15 @@ tests:
         selector: 'text="GAL4 etc"'
         wait_after_s: 2         # give the tab AJAX some time
 
-      # 2. Focus the Anatomy textbox
+      # 2. Focus the Developmental Stage textbox
       - action: click
-        selector: '#ANATOMY'     # same element the recorder found
+        selector: '#STAGE'     # same element the recorder found
         wait_after_s: 0.2
 
       # 3. Type the partial term (“th” starts the type‑ahead)
       - action: input_text
-        selector: '#ANATOMY'
-        text: 'early third instar larvally'
+        selector: '#STAGE'
+        text: 'early third instar larval stage'
         wait_after_s: 0.5        # allow dropdown to populate
 
       # 5. Submit the query
@@ -46,7 +46,7 @@ tests:
         selector: 'text="Search"'   # or role=button[name="Search"]
         wait_after_s: 10         # wait for results table to load
     prompt: |
-      Verify that a results table appears containing relevant data rows for GAL4 lines related to "early third instar larval" search term. The table should not be empty or show an error.
+      Verify that a results table appears containing relevant data rows for GAL4 lines related to "early third instar larval stage" search term. The table should not be empty or show an error.
 
   - name: "Signaling Pathways Section Empty"
     enabled: true
