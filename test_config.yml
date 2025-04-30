@@ -48,21 +48,13 @@ tests:
     prompt: |
       Verify that a results table appears containing relevant data rows for GAL4 lines related to "early third instar larval" search term. The table should not be empty or show an error.
 
-  - name: "Function/Summaries Merged in Gene Group Reports"
-    enabled: false
-    url: "https://flybase.org/" # Placeholder
-    check_types: [text, picture]
-    compare_to_production: true
-    prompt: |
-      Check Gene Group (FlyBase) and Pathway (FlyBase) reports. Function and Summaries sections should be separate, not merged. Ref WEB-2346.
-
   - name: "Signaling Pathways Section Empty"
-    enabled: false
-    url: "https://flybase.org/" # Placeholder
+    enabled: true
+    url: "https://preview.flybase.org/reports/FBgn0000711#pathways_sub
     check_types: [text, picture]
     compare_to_production: true
     prompt: |
-      Verify the Signaling Pathways (FlyBase) section is populated with data. Ref WEB-2346.
+      Directly below the section heading "Signaling Pathways (FlyBase)" should appear multiple links which include the text "Regulators of".
 
   - name: "GO Ribbons Data Not Regenerated"
     enabled: true
@@ -76,6 +68,15 @@ tests:
         wait_after_s: 5
     prompt: |
       Some of the small square boxes above the words molecular function, biological process, and cellular component, should have shades of blue in them.
+
+  - name: "GO Ribbons on Gene Pages Not Updated"
+    enabled: false
+    url: "https://flybase.org/" # Placeholder
+    check_types: [text, picture]
+    compare_to_production: true
+    # <<< This test needs to distinguish two WORKING ribbons that should be subtly different from each other.  Will only work properly for specific gene reports that have been updated in the tested release. >>>
+    prompt: |
+      Verify that GO ribbons on gene pages display updated GO data. Ref WEB-2377.
 
   - name: "FCA Expression Ribbon Data Not Regenerated"
     enabled: true
@@ -189,14 +190,6 @@ tests:
     prompt: |
       Check the Frequently Used GAL4 Drivers table to ensure it reflects recent updates. Ref WEB-2376.
 
-  - name: "GO Ribbons on Gene Pages Not Updated"
-    enabled: false
-    url: "https://flybase.org/" # Placeholder
-    check_types: [text, picture]
-    compare_to_production: true
-    prompt: |
-      Verify that GO ribbons on gene pages display updated GO data. Ref WEB-2377.
-
   - name: "Split Systems Combination View Broken (Staging)"
     enabled: false
     url: "https://flybase.org/" # Placeholder
@@ -229,14 +222,6 @@ tests:
     prompt: |
       Verify fixes/additions addressed in WEB-2390 are visible on Preview.
 
-  - name: "New GO Data Missing from Ribbons/Reports (Preview)"
-    enabled: false
-    url: "https://flybase.org/" # Placeholder
-    check_types: [text, picture]
-    compare_to_production: true
-    prompt: |
-      Check GO ribbons on gene pages and pathway reports on Preview for new GO data. Ref WEB-2401.
-
   - name: "Pathway Statement on All Gene Group Reports (Preview/Staging)"
     enabled: false
     url: "https://flybase.org/" # Placeholder
@@ -252,14 +237,6 @@ tests:
     compare_to_production: true
     prompt: |
       Verify the complex list includes newly added complexes. Ref WEB-2416, WEB-2417.
-
-  - name: "GO Ribbon Data Not Updated"
-    enabled: false
-    url: "https://flybase.org/" # Placeholder
-    check_types: [text, picture]
-    compare_to_production: true
-    prompt: |
-      Check GO ribbons on gene and gene group pages for updated data. Ref WEB-2416, WEB-2418.
 
   - name: "New Metabolic Reports Not Suggested in Search"
     enabled: false
