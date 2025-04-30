@@ -50,11 +50,11 @@ tests:
 
   - name: "Signaling Pathways Section Empty"
     enabled: true
-    url: "https://preview.flybase.org/reports/FBgn0000711#pathways_sub
+    url: "https://preview.flybase.org/reports/FBgn0000711#pathways_sub"
     check_types: [text, picture]
     compare_to_production: true
     prompt: |
-      Directly below the section heading "Signaling Pathways (FlyBase)" should appear multiple links which include the text "Regulators of".
+      Directly below the section heading 'Signaling Pathways (FlyBase)' should appear multiple links which include the text 'Regulators of'.
 
   - name: "GO Ribbons Data Not Regenerated"
     enabled: true
@@ -154,14 +154,6 @@ tests:
     compare_to_production: true
     prompt: |
       Check pathway gene group reports for non-current pathway thumbnails; ensure they are fixed. Ref WEB-2346.
-
-  - name: "Old Symbol in GO Ribbons (Preview)"
-    enabled: false
-    url: "https://flybase.org/" # Placeholder
-    check_types: [text, picture]
-    compare_to_production: true
-    prompt: |
-      Check GO ribbons on preview; ensure symbols are current and crossrefs were pulled. Ref WEB-2371.
 
   - name: "CVTerm Reports Unchanged (Preview - Crossrefs Missing)"
     enabled: false
